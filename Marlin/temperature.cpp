@@ -34,39 +34,39 @@
 #include "delay.h"
 #include "endstops.h"
 
-#if ENABLED(HEATER_0_USES_MAX6675)
+#if ENABLED(HEATER_0_USES_MAX6675) //IGNORE
   #include "MarlinSPI.h"
 #endif
 
-#if ENABLED(BABYSTEPPING)
+#if ENABLED(BABYSTEPPING) //IGNORE
   #include "stepper.h"
 #endif
 
-#if ENABLED(USE_WATCHDOG)
+#if ENABLED(USE_WATCHDOG) //OUR CASE
   #include "watchdog.h"
 #endif
 
-#if ENABLED(EMERGENCY_PARSER)
+#if ENABLED(EMERGENCY_PARSER) //IGNORE
   #include "emergency_parser.h"
 #endif
 
-#if HOTEND_USES_THERMISTOR
-  #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT)
+#if HOTEND_USES_THERMISTOR //OUR CASE
+  #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT) //IGNORE
     static void* heater_ttbl_map[2] = { (void*)HEATER_0_TEMPTABLE, (void*)HEATER_1_TEMPTABLE };
     static constexpr uint8_t heater_ttbllen_map[2] = { HEATER_0_TEMPTABLE_LEN, HEATER_1_TEMPTABLE_LEN };
-  #else
-    static void* heater_ttbl_map[HOTENDS] = ARRAY_BY_HOTENDS((void*)HEATER_0_TEMPTABLE, (void*)HEATER_1_TEMPTABLE, (void*)HEATER_2_TEMPTABLE, (void*)HEATER_3_TEMPTABLE, (void*)HEATER_4_TEMPTABLE);
-    static constexpr uint8_t heater_ttbllen_map[HOTENDS] = ARRAY_BY_HOTENDS(HEATER_0_TEMPTABLE_LEN, HEATER_1_TEMPTABLE_LEN, HEATER_2_TEMPTABLE_LEN, HEATER_3_TEMPTABLE_LEN, HEATER_4_TEMPTABLE_LEN);
+  #else //OUR CASE 
+    static void* heater_ttbl_map[HOTENDS] = ARRAY_BY_HOTENDS((void*)HEATER_0_TEMPTABLE, (void*)HEATER_1_TEMPTABLE, (void*)HEATER_2_TEMPTABLE, (void*)HEATER_3_TEMPTABLE, (void*)HEATER_4_TEMPTABLE); // HOTENDS: NUMBER OF HOTENDS (NOZZLE) = 1, heater_ttbl_map points to the thermistor table given by HEATER_0_TEMPTABLE (defined as the configured table within the options in the folder)
+    static constexpr uint8_t heater_ttbllen_map[HOTENDS] = ARRAY_BY_HOTENDS(HEATER_0_TEMPTABLE_LEN, HEATER_1_TEMPTABLE_LEN, HEATER_2_TEMPTABLE_LEN, HEATER_3_TEMPTABLE_LEN, HEATER_4_TEMPTABLE_LEN); //heater_ttbl_map points to the thermistor table length
   #endif
 #endif
 
-Temperature thermalManager;
+Temperature thermalManager; //instantiating the Temperature class
 
 /**
  * Macros to include the heater id in temp errors. The compiler's dead-code
  * elimination should (hopefully) optimize out the unused strings.
  */
-#if HAS_HEATED_BED
+#if HAS_HEATED_BED 
   #define TEMP_ERR_PSTR(MSG, E) \
     (E) == -1 ? PSTR(MSG ## _BED) : \
     (HOTENDS > 1 && (E) == 1) ? PSTR(MSG_E2 " " MSG) : \
@@ -85,16 +85,16 @@ Temperature thermalManager;
 
 // public:
 
-float Temperature::current_temperature[HOTENDS] = { 0.0 };
+float Temperature::current_temperature[HOTENDS] = { 0.0 }; //Initializing temperature data variables
 int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
         Temperature::target_temperature[HOTENDS] = { 0 };
 
-#if ENABLED(AUTO_POWER_E_FANS)
+#if ENABLED(AUTO_POWER_E_FANS) //Initializing fans data variables
   int16_t Temperature::autofan_speed[HOTENDS] = { 0 };
 #endif
 
-#if HAS_HEATED_BED
-  float Temperature::current_temperature_bed = 0.0;
+#if HAS_HEATED_BED //In the case of a heated bed
+  float Temperature::current_temperature_bed = 0.0; //Initializing bed temperature data variables
   int16_t Temperature::current_temperature_bed_raw = 0,
           Temperature::target_temperature_bed = 0;
   uint8_t Temperature::soft_pwm_amount_bed;
@@ -133,7 +133,7 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
 #endif
 
 // Initialized by settings.load()
-#if ENABLED(PIDTEMP)
+#if ENABLED(PIDTEMP) 
   #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
     float Temperature::Kp[HOTENDS], Temperature::Ki[HOTENDS], Temperature::Kd[HOTENDS];
     #if ENABLED(PID_EXTRUSION_SCALING)
@@ -166,8 +166,9 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
   float Temperature::redundant_temperature = 0.0;
 #endif
 
-volatile bool Temperature::temp_meas_ready = false;
+volatile bool Temperature::temp_meas_ready = false; //Flag for "measurement ready"
 
+```ruby
 #if ENABLED(PIDTEMP)
   float Temperature::temp_iState[HOTENDS] = { 0 },
         Temperature::temp_dState[HOTENDS] = { 0 },
@@ -185,7 +186,7 @@ volatile bool Temperature::temp_meas_ready = false;
   float Temperature::pid_error[HOTENDS];
   bool Temperature::pid_reset[HOTENDS];
 #endif
-
+```
 uint16_t Temperature::raw_temp_value[MAX_EXTRUDERS] = { 0 };
 
 // Init min and max temp with extreme values to prevent false errors during startup
@@ -2400,3 +2401,4 @@ void Temperature::isr() {
   #endif // AUTO_REPORT_TEMPERATURES
 
 #endif // HAS_TEMP_SENSOR
+
