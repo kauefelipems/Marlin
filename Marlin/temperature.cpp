@@ -260,8 +260,8 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     float Ku, Tu,
           workKp = 0, workKi = 0, workKd = 0,
           max = 0, min = 10000;
-
-    #if HAS_PID_FOR_BOTH
+		
+    #if HAS_PID_FOR_BOTH //Macros to choose between bed and nozzle parameters when PID is used for both
       #define GHV(B,H) (hotend < 0 ? (B) : (H))
       #define SHV(S,B,H) if (hotend < 0) S##_bed = B; else S [hotend] = H;
     #elif ENABLED(PIDTEMPBED)
@@ -271,8 +271,8 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       #define GHV(B,H) H
       #define SHV(S,B,H) (S [hotend] = H)
     #endif
-
-    #if WATCH_THE_BED || WATCH_HOTENDS
+	
+    #if (WATCH_THE_BED || WATCH_HOTENDS) && DISABLED(USES_PELTIER_COLD_EXTRUSION) //Avoids thermal protection to reset the device when using peltier to extrude cold hidrogels 
       #define HAS_TP_BED (ENABLED(THERMAL_PROTECTION_BED) && ENABLED(PIDTEMPBED))
       #if HAS_TP_BED && ENABLED(THERMAL_PROTECTION_HOTENDS) && ENABLED(PIDTEMP)
         #define GTV(B,H) (hotend < 0 ? (B) : (H))
@@ -281,12 +281,15 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       #else
         #define GTV(B,H) (H)
       #endif
-      const uint16_t watch_temp_period = GTV(WATCH_BED_TEMP_PERIOD, WATCH_TEMP_PERIOD);
+
+      //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      const uint16_t watch_temp_period = GTV(WATCH_BED_TEMP_PERIOD, WATCH_TEMP_PERIOD); //If temperature does not INCREASE WATCH_BED_TEMP_INCREASE degrees, the protection resets
       const uint8_t watch_temp_increase = GTV(WATCH_BED_TEMP_INCREASE, WATCH_TEMP_INCREASE);
       const float watch_temp_target = target - float(watch_temp_increase + GTV(TEMP_BED_HYSTERESIS, TEMP_HYSTERESIS) + 1);
       millis_t temp_change_ms = next_temp_ms + watch_temp_period * 1000UL;
       float next_watch_temp = 0.0;
       bool heated = false;
+      //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     #endif
 
     #if HAS_AUTO_FAN
@@ -304,16 +307,16 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       #define _BOT_HOTEND 0
     #endif
 
-    if (!WITHIN(hotend, _BOT_HOTEND, _TOP_HOTEND)) {
-      SERIAL_ECHOLNPGM(MSG_PID_BAD_EXTRUDER_NUM);
+    if (!WITHIN(hotend, _BOT_HOTEND, _TOP_HOTEND)) { //Verify if hotend corresponds to an actual extruder
+      SERIAL_ECHOLNPGM(MSG_PID_BAD_EXTRUDER_NUM); //Send messages
       return;
     }
 
     SERIAL_ECHOLNPGM(MSG_PID_AUTOTUNE_START);
 
     disable_all_heaters(); // switch off all heaters.
-
-    SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1);
+	
+    SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1); //Sets hotends soft_pwm_amount to maximum value allowed PID_MAX = 255, but bit shifts before sending to nozzle 
 
     wait_for_heatup = true; // Can be interrupted with M108
 
@@ -327,34 +330,36 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 
         // Get the current temperature and constrain it
         current = GHV(current_temperature_bed, current_temperature[hotend]);
+
         NOLESS(max, current);
         NOMORE(min, current);
 
         #if HAS_AUTO_FAN
-          if (ELAPSED(ms, next_auto_fan_check_ms)) {
+          if (ELAPSED(ms, next_auto_fan_check_ms)) { 
             checkExtruderAutoFans();
             next_auto_fan_check_ms = ms + 2500UL;
           }
         #endif
-
+	
+	//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         if (heating && current > target) {
-          if (ELAPSED(ms, t2 + 5000UL)) {
+          if (ELAPSED(ms, t2 + 5000UL)) { //if 5 seconds have passed after last heating state
             heating = false;
-            SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1);
-            t1 = ms;
-            t_high = t1 - t2;
-            max = target;
+            SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1); //reduces PWM
+            t1 = ms; //Mark time when it turns off
+            t_high = t1 - t2; //heating time passed
+            max = target; //Even though current is bigger than target, max is stored as target
           }
         }
 
         if (!heating && current < target) {
-          if (ELAPSED(ms, t1 + 5000UL)) {
+          if (ELAPSED(ms, t1 + 5000UL)) { //if 5 seconds have passed after last cooling state
             heating = true;
-            t2 = ms;
-            t_low = t2 - t1;
+            t2 = ms; 
+            t_low = t2 - t1; //cooling time passed
             if (cycles > 0) {
-              const long max_pow = GHV(MAX_BED_POWER, PID_MAX);
-              bias += (d * (t_high - t_low)) / (t_low + t_high);
+              const long max_pow = GHV(MAX_BED_POWER, PID_MAX); //maximum power
+              bias += (d * (t_high - t_low)) / (t_low + t_high); 
               bias = constrain(bias, 20, max_pow - 20);
               d = (bias > max_pow >> 1) ? max_pow - 1 - bias : bias;
 
@@ -398,7 +403,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
           }
         }
       }
-
+      //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
       // Did the temperature overshoot very far?
       #ifndef MAX_OVERSHOOT_PID_AUTOTUNE
         #define MAX_OVERSHOOT_PID_AUTOTUNE 20
