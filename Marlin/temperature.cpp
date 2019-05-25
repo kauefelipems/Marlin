@@ -316,10 +316,17 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 
     disable_all_heaters(); // switch off all heaters.
 	
+	#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+		while(!temp_meas_ready){} //wait for ADC to read temperature
+		updateTemperaturesFromRawValues(); //update the variable values
+		float room_temperature = GHV(current_temperature_bed, current_temperature[hotend]); //first temperature measured is considered the room temperature
+	#endif
+	
     SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1); //Sets hotends soft_pwm_amount to maximum value allowed PID_MAX = 255, but bit shifts before sending to nozzle 
 
     wait_for_heatup = true; // Can be interrupted with M108
-
+	
+	
     // PID Tuning loop
     while (wait_for_heatup) {
 
