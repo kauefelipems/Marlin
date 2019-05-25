@@ -251,7 +251,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
   void Temperature::PID_autotune(const float &target, const int8_t hotend, const int8_t ncycles, const bool set_result/*=false*/) {
     float current = 0.0;
     int cycles = 0;
-    bool heating = true;
+    bool acting = true;
 
     millis_t next_temp_ms = millis(), t1 = next_temp_ms, t2 = next_temp_ms;
     long t_high = 0, t_low = 0;
@@ -282,14 +282,14 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         #define GTV(B,H) (H)
       #endif
 
-      //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      
       const uint16_t watch_temp_period = GTV(WATCH_BED_TEMP_PERIOD, WATCH_TEMP_PERIOD); //If temperature does not INCREASE WATCH_BED_TEMP_INCREASE degrees, the protection resets
       const uint8_t watch_temp_increase = GTV(WATCH_BED_TEMP_INCREASE, WATCH_TEMP_INCREASE);
       const float watch_temp_target = target - float(watch_temp_increase + GTV(TEMP_BED_HYSTERESIS, TEMP_HYSTERESIS) + 1);
       millis_t temp_change_ms = next_temp_ms + watch_temp_period * 1000UL;
       float next_watch_temp = 0.0;
       bool heated = false;
-      //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      
     #endif
 
     #if HAS_AUTO_FAN
@@ -341,38 +341,37 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
           }
         #endif
 	
-	//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        if (heating && current > target) {
-          if (ELAPSED(ms, t2 + 5000UL)) { //if 5 seconds have passed after last heating state
-            heating = false;
-            SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1); //reduces PWM
+        if (acting && current > target) {
+          if (ELAPSED(ms, t2 + 5000UL)) { //if 5 seconds have passed after last acting state. Think it's to prevent of noise without using histeresis
+            acting = false;
+            SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1); //relay off
             t1 = ms; //Mark time when it turns off
-            t_high = t1 - t2; //heating time passed
-            max = target; //Even though current is bigger than target, max is stored as target
+            t_high = t1 - t2; //higher than target time
+            max = target;
           }
         }
 
-        if (!heating && current < target) {
+        if (!acting && current < target) {
           if (ELAPSED(ms, t1 + 5000UL)) { //if 5 seconds have passed after last cooling state
-            heating = true;
-            t2 = ms; 
-            t_low = t2 - t1; //cooling time passed
-            if (cycles > 0) {
+            acting = true;
+            t2 = ms; //mark beggining of on time 
+            t_low = t2 - t1; //lower than target time
+            if (cycles > 0) { //if initialization has passed
               const long max_pow = GHV(MAX_BED_POWER, PID_MAX); //maximum power
-              bias += (d * (t_high - t_low)) / (t_low + t_high); 
-              bias = constrain(bias, 20, max_pow - 20);
-              d = (bias > max_pow >> 1) ? max_pow - 1 - bias : bias;
+              bias += (d * (t_high - t_low)) / (t_low + t_high); //set bias to equalize higher and lower time, stabilizing the oscillation
+              bias = constrain(bias, 20, max_pow - 20); //providing headroom for d
+              d = (bias > max_pow >> 1) ? max_pow - 1 - bias : bias; //if there's no headroom for d=bias, set d in order to have d+bias = max_pow-1 
 
               SERIAL_PROTOCOLPAIR(MSG_BIAS, bias);
               SERIAL_PROTOCOLPAIR(MSG_D, d);
               SERIAL_PROTOCOLPAIR(MSG_T_MIN, min);
               SERIAL_PROTOCOLPAIR(MSG_T_MAX, max);
-              if (cycles > 2) {
-                Ku = (4.0f * d) / (M_PI * (max - min) * 0.5f);
+              if (cycles > 2) { //after third cycle (probably enough cycles to work with)
+                Ku = (4.0f * d) / (M_PI * (max - min) * 0.5f); //Gettting critical point
                 Tu = ((float)(t_low + t_high) * 0.001f);
                 SERIAL_PROTOCOLPAIR(MSG_KU, Ku);
                 SERIAL_PROTOCOLPAIR(MSG_TU, Tu);
-                workKp = 0.6f * Ku;
+                workKp = 0.6f * Ku; //Ziegler-Nichols tuning method
                 workKi = 2 * workKp / Tu;
                 workKd = workKp * Tu * 0.125f;
                 SERIAL_PROTOCOLLNPGM("\n" MSG_CLASSIC_PID);
@@ -397,33 +396,33 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
                 */
               }
             }
-            SHV(soft_pwm_amount, (bias + d) >> 1, (bias + d) >> 1);
-            cycles++;
-            min = target;
+            SHV(soft_pwm_amount, (bias + d) >> 1, (bias + d) >> 1); //Relay on
+            cycles++; //update cycles
+            min = target; //set min to target (not sure why, perhaps to avoid any noise to contaminate the min value)
           }
         }
       }
-      //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      
       // Did the temperature overshoot very far?
       #ifndef MAX_OVERSHOOT_PID_AUTOTUNE
         #define MAX_OVERSHOOT_PID_AUTOTUNE 20
       #endif
       if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE) {
-        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH);
+        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); //Error to prevent overshooting
         break;
       }
 
       // Report heater states every 2 seconds
       if (ELAPSED(ms, next_temp_ms)) {
         #if HAS_TEMP_SENSOR
-          print_heaterstates();
+          print_heaterstates(); //print temperature on the screen (?)
           SERIAL_EOL();
         #endif
         next_temp_ms = ms + 2000UL;
 
-        // Make sure heating is actually working
-        #if WATCH_THE_BED || WATCH_HOTENDS
-          if (
+        // Make sure acting is actually working (disabled to avoid reset when using Peltier cold extrusion)
+        #if (WATCH_THE_BED || WATCH_HOTENDS) && DISABLED(USES_PELTIER_COLD_EXTRUSION)
+          if ( 
             #if WATCH_THE_BED && WATCH_HOTENDS
               true
             #elif WATCH_HOTENDS
@@ -432,11 +431,12 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
               hotend < 0
             #endif
           ) {
+			 
             if (!heated) {                                          // If not yet reached target...
               if (current > next_watch_temp) {                      // Over the watch temp?
                 next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
                 temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-                if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached
+                if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
               }
               else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
                 _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
@@ -456,9 +456,9 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         break;
       }
 
-      if (cycles > ncycles) {
+      if (cycles > ncycles) { //after finished
         SERIAL_PROTOCOLLNPGM(MSG_PID_AUTOTUNE_FINISHED);
-
+		//message showing the gains
         #if HAS_PID_FOR_BOTH
           const char* estring = GHV("bed", "");
           SERIAL_PROTOCOLPAIR("#define DEFAULT_", estring); SERIAL_PROTOCOLPAIR("Kp ", workKp); SERIAL_EOL();
@@ -473,7 +473,8 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
           SERIAL_PROTOCOLPAIR("#define DEFAULT_bedKi ", workKi); SERIAL_EOL();
           SERIAL_PROTOCOLPAIR("#define DEFAULT_bedKd ", workKd); SERIAL_EOL();
         #endif
-
+		
+		//Macros to define the gain variables per hotend/bed
         #define _SET_BED_PID() do { \
           bedKp = workKp; \
           bedKi = scalePID_i(workKi); \
