@@ -317,13 +317,25 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     disable_all_heaters(); // switch off all heaters.
 	
 	#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+		
+		#define RELAY_ON_THRESHOLD(C,T) (peltier_cooling ? (C < T) : (C > T))
+		#define RELAY_OFF_THRESHOLD(C,T) (peltier_cooling ? (C > T) : (C < T))
+		
 		while(!temp_meas_ready){} //wait for ADC to read temperature
 		updateTemperaturesFromRawValues(); //update the variable values
 		float room_temperature = GHV(current_temperature_bed, current_temperature[hotend]); //first temperature measured is considered the room temperature
+		bool peltier_cooling = 0;
+		if (room_temperature > target) peltier_cooling = 1; //flag to direct the relay actuation
+	
+	#else
+		
+		#define RELAY_ON_THRESHOLD(C,T) (C < T)
+		#define RELAY_OFF_THRESHOLD(C,T) (C > T)
+	
 	#endif
 	
     SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1); //Sets hotends soft_pwm_amount to maximum value allowed PID_MAX = 255, but bit shifts before sending to nozzle 
-
+	
     wait_for_heatup = true; // Can be interrupted with M108
 	
 	
@@ -335,7 +347,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       if (temp_meas_ready) { // temp sample ready
         updateTemperaturesFromRawValues();
 
-        // Get the current temperature and constrain it
+        // Get the current temperature
         current = GHV(current_temperature_bed, current_temperature[hotend]);
 
         NOLESS(max, current);
@@ -347,7 +359,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             next_auto_fan_check_ms = ms + 2500UL;
           }
         #endif
-	
+		
         if (acting && current > target) {
           if (ELAPSED(ms, t2 + 5000UL)) { //if 5 seconds have passed after last acting state. Think it's to prevent of noise without using histeresis
             acting = false;
@@ -415,7 +427,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         #define MAX_OVERSHOOT_PID_AUTOTUNE 20
       #endif
       if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE) {
-        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); //Error to prevent overshooting
+        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
         break;
       }
 
