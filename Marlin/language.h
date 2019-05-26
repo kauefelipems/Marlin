@@ -228,6 +228,7 @@
 #define MSG_PID_AUTOTUNE_FAILED             MSG_PID_AUTOTUNE " failed!"
 #define MSG_PID_BAD_EXTRUDER_NUM            MSG_PID_AUTOTUNE_FAILED " Bad extruder number"
 #define MSG_PID_TEMP_TOO_HIGH               MSG_PID_AUTOTUNE_FAILED " Temperature too high"
+#define MSG_PID_TEMP_TOO_LOW                MSG_PID_AUTOTUNE_FAILED " Temperature too low"
 #define MSG_PID_TIMEOUT                     MSG_PID_AUTOTUNE_FAILED " timeout"
 #define MSG_BIAS                            " bias: "
 #define MSG_D                               " d: "

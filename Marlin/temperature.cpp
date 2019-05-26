@@ -424,11 +424,31 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       // Did the temperature overshoot very far?
       #ifndef MAX_OVERSHOOT_PID_AUTOTUNE
         #define MAX_OVERSHOOT_PID_AUTOTUNE 20
-      #endif
-      if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE) {
-        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
-        break;
-      }
+	  #endif
+
+	  #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+	  
+		#ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
+			#define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
+		#endif
+		
+		if (!peltier_cooling && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
+			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
+			break;
+		}
+	  
+		else if (peltier_cooling && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
+			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
+			break;
+		}
+		
+	  #else
+	  
+		if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE){
+			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
+			break;
+		}
+	  #endif
 
       // Report heater states every 2 seconds
       if (ELAPSED(ms, next_temp_ms)) {
