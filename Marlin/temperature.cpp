@@ -318,14 +318,13 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 	
 	#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
 		
-		#define RELAY_ON_THRESHOLD(C,T) (peltier_cooling ? (C < T) : (C > T))
-		#define RELAY_OFF_THRESHOLD(C,T) (peltier_cooling ? (C > T) : (C < T))
+		#define RELAY_ON_THRESHOLD(C,T) (peltier_cooling ? (C > T) : (C < T))
+		#define RELAY_OFF_THRESHOLD(C,T) (peltier_cooling ? (C < T) : (C > T))
 		
 		while(!temp_meas_ready){} //wait for ADC to read temperature
 		updateTemperaturesFromRawValues(); //update the variable values
 		float room_temperature = GHV(current_temperature_bed, current_temperature[hotend]); //first temperature measured is considered the room temperature
-		bool peltier_cooling = 0;
-		if (room_temperature > target) peltier_cooling = 1; //flag to direct the relay actuation
+		bool peltier_cooling = room_temperature > target;
 	
 	#else
 		
@@ -360,17 +359,17 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
           }
         #endif
 		
-        if (acting && current > target) {
+        if (acting && RELAY_OFF_THRESHOLD(current,target)) {
           if (ELAPSED(ms, t2 + 5000UL)) { //if 5 seconds have passed after last acting state. Think it's to prevent of noise without using histeresis
             acting = false;
             SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1); //relay off
             t1 = ms; //Mark time when it turns off
             t_high = t1 - t2; //higher than target time
-            max = target;
+            peltier_cooling ? min = target : max = target; 	//reseting the value of min or max 
           }
         }
 
-        if (!acting && current < target) {
+        if (!acting && RELAY_ON_THRESHOLD(current,target)) {
           if (ELAPSED(ms, t1 + 5000UL)) { //if 5 seconds have passed after last cooling state
             acting = true;
             t2 = ms; //mark beggining of on time 
@@ -385,7 +384,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
               SERIAL_PROTOCOLPAIR(MSG_D, d);
               SERIAL_PROTOCOLPAIR(MSG_T_MIN, min);
               SERIAL_PROTOCOLPAIR(MSG_T_MAX, max);
-              if (cycles > 2) { //after third cycle (probably enough cycles to work with)
+              if (cycles > 2) {  
                 Ku = (4.0f * d) / (M_PI * (max - min) * 0.5f); //Gettting critical point
                 Tu = ((float)(t_low + t_high) * 0.001f);
                 SERIAL_PROTOCOLPAIR(MSG_KU, Ku);
@@ -417,7 +416,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             }
             SHV(soft_pwm_amount, (bias + d) >> 1, (bias + d) >> 1); //Relay on
             cycles++; //update cycles
-            min = target; //set min to target (not sure why, perhaps to avoid any noise to contaminate the min value)
+            peltier_cooling ? max = target : min = target;
           }
         }
       }
