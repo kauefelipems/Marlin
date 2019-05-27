@@ -700,13 +700,13 @@ float Temperature::get_pid_output(const int8_t e) {
            #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
              (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
            #endif
-           (target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX]); 
+                  (target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX]); 
   
         dTerm[HOTEND_INDEX] = 
            #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
              (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) *  //Invert error signal if Peltier is cooling down
            #endif
-           PID_K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + float(PID_K1) * dTerm[HOTEND_INDEX]; //smoothing filter, probably to avoid noise
+                  PID_K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + float(PID_K1) * dTerm[HOTEND_INDEX]; //smoothing filter, probably to avoid noise
         
         temp_dState[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];      
   
@@ -814,12 +814,23 @@ float Temperature::get_pid_output(const int8_t e) {
   float Temperature::get_pid_output_bed() {
     float pid_output;
     #if DISABLED(PID_OPENLOOP)
-      pid_error_bed = target_temperature_bed - current_temperature_bed;
+    
+      pid_error_bed = 
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+          (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
+        #endif        
+              target_temperature_bed - current_temperature_bed;
+      
       pTerm_bed = bedKp * pid_error_bed;
       temp_iState_bed += pid_error_bed;
       iTerm_bed = bedKi * temp_iState_bed;
 
-      dTerm_bed = PID_K2 * bedKd * (current_temperature_bed - temp_dState_bed) + PID_K1 * dTerm_bed;
+      dTerm_bed = 
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+          (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
+        #endif
+              PID_K2 * bedKd * (current_temperature_bed - temp_dState_bed) + PID_K1 * dTerm_bed;
+      
       temp_dState_bed = current_temperature_bed;
 
       pid_output = pTerm_bed + iTerm_bed - dTerm_bed;
