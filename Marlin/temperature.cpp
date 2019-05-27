@@ -132,6 +132,7 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
   uint16_t Temperature::raw_temp_chamber_value = 0;
 #endif
 
+
 // Initialized by settings.load()
 #if ENABLED(PIDTEMP) 
   #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
@@ -168,7 +169,6 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
 
 volatile bool Temperature::temp_meas_ready = false; //Flag for "measurement ready"
 
-```ruby
 #if ENABLED(PIDTEMP)
   float Temperature::temp_iState[HOTENDS] = { 0 },
         Temperature::temp_dState[HOTENDS] = { 0 },
@@ -272,7 +272,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       #define SHV(S,B,H) (S [hotend] = H)
     #endif
 	
-    #if (WATCH_THE_BED || WATCH_HOTENDS) && DISABLED(USES_PELTIER_COLD_EXTRUSION) //Avoids thermal protection to reset the device when using peltier to extrude cold hidrogels 
+    #if (WATCH_THE_BED || WATCH_HOTENDS) //thermal protection macros 
       #define HAS_TP_BED (ENABLED(THERMAL_PROTECTION_BED) && ENABLED(PIDTEMPBED))
       #if HAS_TP_BED && ENABLED(THERMAL_PROTECTION_HOTENDS) && ENABLED(PIDTEMP)
         #define GTV(B,H) (hotend < 0 ? (B) : (H))
@@ -315,24 +315,19 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     SERIAL_ECHOLNPGM(MSG_PID_AUTOTUNE_START);
 
     disable_all_heaters(); // switch off all heaters.
-	
+
 	#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-		
-		#define RELAY_ON_THRESHOLD(C,T) (peltier_cooling ? (C > T) : (C < T))
-		#define RELAY_OFF_THRESHOLD(C,T) (peltier_cooling ? (C < T) : (C > T))
-		
-		while(!temp_meas_ready){} //wait for ADC to read temperature
-		updateTemperaturesFromRawValues(); //update the variable values
-		float room_temperature = GHV(current_temperature_bed, current_temperature[hotend]); //first temperature measured is considered the room temperature
-		bool peltier_cooling = room_temperature > target;
-	
+
+		#define RELAY_ON_THRESHOLD(C,T) (cool_or_heat_state ? (C > T) : (C < T))
+		#define RELAY_OFF_THRESHOLD(C,T) (cool_or_heat_state ? (C < T) : (C > T))
+
 	#else
-		
+
 		#define RELAY_ON_THRESHOLD(C,T) (C < T)
 		#define RELAY_OFF_THRESHOLD(C,T) (C > T)
-	
+
 	#endif
-	
+
     SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1); //Sets hotends soft_pwm_amount to maximum value allowed PID_MAX = 255, but bit shifts before sending to nozzle 
 	
     wait_for_heatup = true; // Can be interrupted with M108
@@ -348,7 +343,11 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 
         // Get the current temperature
         current = GHV(current_temperature_bed, current_temperature[hotend]);
-
+        
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+          cool_or_heat_state = cool_or_heat[hotend];
+        #endif
+        
         NOLESS(max, current);
         NOMORE(min, current);
 
@@ -365,7 +364,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1); //relay off
             t1 = ms; //Mark time when it turns off
             t_high = t1 - t2; //higher than target time
-            peltier_cooling ? min = target : max = target; 	//reseting the value of min or max 
+            cool_or_heat_state ? min = target : max = target; 	//reseting the value of min or max 
           }
         }
 
@@ -416,7 +415,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             }
             SHV(soft_pwm_amount, (bias + d) >> 1, (bias + d) >> 1); //Relay on
             cycles++; //update cycles
-            peltier_cooling ? max = target : min = target;
+            cool_or_heat_state ? max = target : min = target;
           }
         }
       }
@@ -432,12 +431,12 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 			#define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
 		#endif
 		
-		if (!peltier_cooling && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
+		if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
 			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
 			break;
 		}
 	  
-		else if (peltier_cooling && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
+		else if (cool_or_heat_state && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
 			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
 			break;
 		}
@@ -469,21 +468,21 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
               hotend < 0
             #endif
           ) {
-			#if USES_PELTIER_COLD_EXTRUSION
-				//Peltier implementation yet to be done ------------------------------------------------------------------------------------------------------
-			#else 
-				if (!heated) {                                          // If not yet reached target...
-				  if (current > next_watch_temp) {                      // Over the watch temp?
-					next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
-					temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-					if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
-				  }
-				  else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
-					_temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
-				}
-				else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
-				  _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
-			#endif
+		#if USES_PELTIER_COLD_EXTRUSION
+			//Peltier implementation yet to be done ------------------------------------------------------------------------------------------------------
+		#else 
+			if (!heated) {                                          // If not yet reached target...
+			  if (current > next_watch_temp) {                      // Over the watch temp?
+				next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
+				temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
+				if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
+			  }
+			  else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
+				_temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
+			}
+			else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
+			  _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+		#endif
           }
         #endif
       } // every 2 seconds
@@ -613,6 +612,41 @@ int Temperature::getHeaterPower(const int heater) {
 
 #endif // HAS_AUTO_FAN
 
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+
+  void Temperature::get_Cool_or_Heat(){ //assigns cool_or_heat 1 = cool 0 = heat considering room temperature and target temperature
+    
+    const millis_t ms = millis();
+    millis_t wait_time = ms;
+    
+    #ifndef MAX_ADC_WAIT_TIME
+      #define MAX_ADC_WAIT_TIME 10
+    #endif
+    
+    while(1){ //wait for ADC to read temperature
+      wait_time = millis();
+      
+      if (temp_meas_ready){
+        updateTemperaturesFromRawValues(); //update the variable values
+        
+        for (uint8_t i = 0; i < HOTENDS ; i++){  
+          cool_or_heat[i] = current_temperature[i] > target_temperature[i]; 
+        }
+        #if ENABLED(HAS_HEATED_BED)
+          cool_or_heat_bed = current_temperature_bed > target_temperature_bed;
+        #endif  
+        break;
+      }
+      
+        //Implement TIME-OUT
+      else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
+        SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
+        break;
+      } 
+    }
+  }
+#endif
+
 //
 // Temperature Error Handlers
 //
@@ -623,12 +657,12 @@ void Temperature::_temp_error(const int8_t e, const char * const serial_msg, con
     SERIAL_ERRORPGM(MSG_STOPPED_HEATER);
     if (e >= 0) SERIAL_ERRORLN((int)e); else SERIAL_ERRORLNPGM(MSG_HEATER_BED);
   }
-  #if DISABLED(BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE)
+  #if DISABLED(BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE) //kill process if thermistor bad readings are not ignored	
     static bool killed = false;
     if (!killed) {
       Running = false;
       killed = true;
-      kill(lcd_msg);
+      kill(lcd_msg); //reset machine
     }
     else
       disable_all_heaters(); // paranoia
@@ -643,6 +677,7 @@ void Temperature::min_temp_error(const int8_t e) {
   _temp_error(e, PSTR(MSG_T_MINTEMP), TEMP_ERR_PSTR(MSG_ERR_MINTEMP, e));
 }
 
+//Evaluating the PID output signal
 float Temperature::get_pid_output(const int8_t e) {
   #if HOTENDS == 1
     UNUSED(e);

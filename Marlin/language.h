@@ -230,6 +230,7 @@
 #define MSG_PID_TEMP_TOO_HIGH               MSG_PID_AUTOTUNE_FAILED " Temperature too high"
 #define MSG_PID_TEMP_TOO_LOW                MSG_PID_AUTOTUNE_FAILED " Temperature too low"
 #define MSG_PID_TIMEOUT                     MSG_PID_AUTOTUNE_FAILED " timeout"
+#define MSG_ADC_WAIT_TIMEOUT                "Temperature reading timeout"
 #define MSG_BIAS                            " bias: "
 #define MSG_D                               " d: "
 #define MSG_T_MIN                           " min: "

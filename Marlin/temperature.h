@@ -127,6 +127,13 @@ class Temperature {
                    target_temperature[HOTENDS];
     static uint8_t soft_pwm_amount[HOTENDS];
 
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+		static bool cool_or_heat[HOTENDS];
+		#if HAS_HEATED_BED
+			static bool cool_or_heat_bed;
+		#endif
+    #endif
+
     #if ENABLED(AUTO_POWER_E_FANS)
       static int16_t autofan_speed[HOTENDS];
     #endif
