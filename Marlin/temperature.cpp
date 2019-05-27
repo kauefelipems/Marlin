@@ -93,6 +93,13 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
   int16_t Temperature::autofan_speed[HOTENDS] = { 0 };
 #endif
 
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+  bool Temperature::cool_or_heat[HOTENDS] = {0};
+  #if HAS_HEATED_BED
+    bool Temperature::cool_or_heat_bed = 0;
+  #endif
+#endif
+
 #if HAS_HEATED_BED //In the case of a heated bed
   float Temperature::current_temperature_bed = 0.0; //Initializing bed temperature data variables
   int16_t Temperature::current_temperature_bed_raw = 0,
