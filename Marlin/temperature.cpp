@@ -456,42 +456,42 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 		}
 	  #endif
 
-      // Report heater states every 2 seconds
-      if (ELAPSED(ms, next_temp_ms)) {
-        #if HAS_TEMP_SENSOR
-          print_heaterstates(); //print temperature on the screen (?)
-          SERIAL_EOL();
-        #endif
-        next_temp_ms = ms + 2000UL;
+    // Report heater states every 2 seconds
+    if (ELAPSED(ms, next_temp_ms)) {
+      #if HAS_TEMP_SENSOR
+        print_heaterstates(); //print temperature on the screen (?)
+        SERIAL_EOL();
+      #endif
+      next_temp_ms = ms + 2000UL;
 
-        // Make sure acting is actually working 
-        #if (WATCH_THE_BED || WATCH_HOTENDS)
-          if ( 
-            #if WATCH_THE_BED && WATCH_HOTENDS
-              true
-            #elif WATCH_HOTENDS
-              hotend >= 0
-            #else
-              hotend < 0
-            #endif
-          ) {
-		#if USES_PELTIER_COLD_EXTRUSION
-			//Peltier implementation yet to be done ------------------------------------------------------------------------------------------------------
-		#else 
-			if (!heated) {                                          // If not yet reached target...
-			  if (current > next_watch_temp) {                      // Over the watch temp?
-				next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
-				temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-				if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
-			  }
-			  else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
-				_temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
-			}
-			else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
-			  _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
-		#endif
-          }
-        #endif
+      // Make sure acting is actually working 
+      #if (WATCH_THE_BED || WATCH_HOTENDS)
+        if ( 
+          #if WATCH_THE_BED && WATCH_HOTENDS
+            true
+          #elif WATCH_HOTENDS
+            hotend >= 0
+          #else
+            hotend < 0
+          #endif
+        ) {
+          #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+            //Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+          #else 
+            if (!heated) {                                          // If not yet reached target...
+              if (current > next_watch_temp) {                      // Over the watch temp?
+              next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
+              temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
+              if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
+              }
+              else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
+              _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
+            }
+            else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
+              _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+          #endif
+         }
+         #endif
       } // every 2 seconds
 
       // Timeout after MAX_CYCLE_TIME_PID_AUTOTUNE minutes since the last undershoot/overshoot cycle
@@ -690,26 +690,39 @@ float Temperature::get_pid_output(const int8_t e) {
     UNUSED(e);
     #define _HOTEND_TEST     true
   #else
-    #define _HOTEND_TEST     e == active_extruder
+    #define _HOTEND_TEST     e == active_extruder //for extrusion scaling
   #endif
   float pid_output;
   #if ENABLED(PIDTEMP)
     #if DISABLED(PID_OPENLOOP)
-      pid_error[HOTEND_INDEX] = target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX];
-      dTerm[HOTEND_INDEX] = PID_K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + float(PID_K1) * dTerm[HOTEND_INDEX];
-      temp_dState[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
-      #if HEATER_IDLE_HANDLER
-        if (heater_idle_timeout_exceeded[HOTEND_INDEX]) {
+  
+        pid_error[HOTEND_INDEX] = 
+           #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+             (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
+           #endif
+           (target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX]); 
+  
+        dTerm[HOTEND_INDEX] = 
+           #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+             (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) *  //Invert error signal if Peltier is cooling down
+           #endif
+           PID_K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + float(PID_K1) * dTerm[HOTEND_INDEX]; //smoothing filter, probably to avoid noise
+        
+        temp_dState[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];      
+  
+      #if HEATER_IDLE_HANDLER 
+        if (heater_idle_timeout_exceeded[HOTEND_INDEX]) { //if too much idle time turn the control action off
           pid_output = 0;
           pid_reset[HOTEND_INDEX] = true;
         }
         else
       #endif
-      if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE) {
+      if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE) { //if error greater than linear range set output to max to accelerate the process
         pid_output = BANG_MAX;
         pid_reset[HOTEND_INDEX] = true;
       }
-      else if (pid_error[HOTEND_INDEX] < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0
+      else if (pid_error[HOTEND_INDEX] < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0 //if negative error greater than linear range, or temperature target is zero, or idle for 
+                                                                                                          //too much time, turn the heater off
         #if HEATER_IDLE_HANDLER
           || heater_idle_timeout_exceeded[HOTEND_INDEX]
         #endif
@@ -719,7 +732,7 @@ float Temperature::get_pid_output(const int8_t e) {
       }
       else {
         if (pid_reset[HOTEND_INDEX]) {
-          temp_iState[HOTEND_INDEX] = 0.0;
+          temp_iState[HOTEND_INDEX] = 0.0; //reset integrator when pid_reset = true
           pid_reset[HOTEND_INDEX] = false;
         }
         pTerm[HOTEND_INDEX] = PID_PARAM(Kp, HOTEND_INDEX) * pid_error[HOTEND_INDEX];
@@ -728,20 +741,25 @@ float Temperature::get_pid_output(const int8_t e) {
 
         pid_output = pTerm[HOTEND_INDEX] + iTerm[HOTEND_INDEX] - dTerm[HOTEND_INDEX];
 
-        #if ENABLED(PID_EXTRUSION_SCALING)
+        #if ENABLED(PID_EXTRUSION_SCALING) 
           cTerm[HOTEND_INDEX] = 0;
-          if (_HOTEND_TEST) {
+          if (_HOTEND_TEST) { //check if extruder is moving filament
             const long e_position = stepper.position(E_AXIS);
             if (e_position > last_e_position) {
-              lpq[lpq_ptr] = e_position - last_e_position;
+              lpq[lpq_ptr] = e_position - last_e_position; //check the feed rate (steps) and save it the lpq queue
               last_e_position = e_position;
             }
             else
               lpq[lpq_ptr] = 0;
 
-            if (++lpq_ptr >= lpq_len) lpq_ptr = 0;
+            if (++lpq_ptr >= lpq_len) lpq_ptr = 0; //reset the queue
             cTerm[HOTEND_INDEX] = (lpq[lpq_ptr] * planner.steps_to_mm[E_AXIS]) * PID_PARAM(Kc, HOTEND_INDEX);
-            pid_output += cTerm[HOTEND_INDEX];
+            
+            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) //in the Peltier case, the whole hydrogel is inside the thermal module, hence it doesn't need extrusion scaling
+              //Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            #else
+              pid_output += cTerm[HOTEND_INDEX];
+            #end
           }
         #endif // PID_EXTRUSION_SCALING
 
@@ -755,7 +773,7 @@ float Temperature::get_pid_output(const int8_t e) {
         }
       }
     #else
-      pid_output = constrain(target_temperature[HOTEND_INDEX], 0, PID_MAX);
+      pid_output = constrain(target_temperature[HOTEND_INDEX], 0, PID_MAX); //sets the power directly through M104
     #endif // PID_OPENLOOP
 
     #if ENABLED(PID_DEBUG)
@@ -778,7 +796,15 @@ float Temperature::get_pid_output(const int8_t e) {
         pid_output = 0;
       else
     #endif
-    pid_output = (current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0;
+    pid_output = 
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+          cool_or_heat[HOTEND_INDEX] 
+            ? ((current_temperature[HOTEND_INDEX] > target_temperature[HOTEND_INDEX]) ? PID_MAX : 0) //if cooling, act if current > target
+            : ((current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0); //if heating, act if current < target
+        #else
+          (current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0; //relay operation
+        #endif
+  
   #endif
 
   return pid_output;
