@@ -458,8 +458,8 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         #endif
         next_temp_ms = ms + 2000UL;
 
-        // Make sure acting is actually working (disabled to avoid reset when using Peltier cold extrusion)
-        #if (WATCH_THE_BED || WATCH_HOTENDS) && DISABLED(USES_PELTIER_COLD_EXTRUSION)
+        // Make sure acting is actually working 
+        #if (WATCH_THE_BED || WATCH_HOTENDS)
           if ( 
             #if WATCH_THE_BED && WATCH_HOTENDS
               true
@@ -469,18 +469,21 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
               hotend < 0
             #endif
           ) {
-			 
-            if (!heated) {                                          // If not yet reached target...
-              if (current > next_watch_temp) {                      // Over the watch temp?
-                next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
-                temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-                if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
-              }
-              else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
-                _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
-            }
-            else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
-              _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+			#if USES_PELTIER_COLD_EXTRUSION
+				//Peltier implementation yet to be done ------------------------------------------------------------------------------------------------------
+			#else 
+				if (!heated) {                                          // If not yet reached target...
+				  if (current > next_watch_temp) {                      // Over the watch temp?
+					next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
+					temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
+					if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
+				  }
+				  else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
+					_temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
+				}
+				else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
+				  _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+			#endif
           }
         #endif
       } // every 2 seconds
