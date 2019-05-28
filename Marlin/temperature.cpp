@@ -324,22 +324,33 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 
     disable_all_heaters(); // switch off all heaters.
 
-	#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
-		#define RELAY_ON_THRESHOLD(C,T) (cool_or_heat_state ? (C > T) : (C < T))
-		#define RELAY_OFF_THRESHOLD(C,T) (cool_or_heat_state ? (C < T) : (C > T))
+      #define RELAY_ON_THRESHOLD(C,T) (cool_or_heat_state ? (C > T) : (C < T))
+      #define RELAY_OFF_THRESHOLD(C,T) (cool_or_heat_state ? (C < T) : (C > T))
 
-	#else
+    #else 
 
-		#define RELAY_ON_THRESHOLD(C,T) (C < T)
-		#define RELAY_OFF_THRESHOLD(C,T) (C > T)
+      #define RELAY_ON_THRESHOLD(C,T) (C < T)
+      #define RELAY_OFF_THRESHOLD(C,T) (C > T)
 
-	#endif
+    #endif
 
     SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1); //Sets hotends soft_pwm_amount to maximum value allowed PID_MAX = 255, but bit shifts before sending to nozzle 
 	
     wait_for_heatup = true; // Can be interrupted with M108
-	
+    
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)	  
+      bool cool_or_heat_state = 0; //initialize as heating
+    #endif
+    
+    #if ENABLED(USES_PELTIER_COLD_BED)
+      if(hotend < 0) cool_or_heat_state = cool_or_heat_bed;
+    #endif
+
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+      else cool_or_heat_state = cool_or_heat[hotend];
+    #endif
 	
     // PID Tuning loop
     while (wait_for_heatup) {
@@ -352,9 +363,6 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         // Get the current temperature
         current = GHV(current_temperature_bed, current_temperature[hotend]);
         
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-          cool_or_heat_state = cool_or_heat[hotend];
-        #endif
         
         NOLESS(max, current);
         NOMORE(min, current);
@@ -428,16 +436,17 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         }
       }
       
-      // Did the temperature overshoot very far?
-      #ifndef MAX_OVERSHOOT_PID_AUTOTUNE
-        #define MAX_OVERSHOOT_PID_AUTOTUNE 20
-	  #endif
+    // Did the temperature overshoot very far?
+    #ifndef MAX_OVERSHOOT_PID_AUTOTUNE
+      #define MAX_OVERSHOOT_PID_AUTOTUNE 20
+    #endif
 
-	  #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+    #ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
+      #define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
+    #endif
+      
+	  #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 	  
-      #ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
-        #define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
-      #endif
 
       if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
         SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
@@ -448,7 +457,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
         SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
         break;
       }
-		
+
 	  #else
 	  
       if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE){
@@ -490,7 +499,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             }
             else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
               _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
-          #endif
+          #endif // ENABLED(USES_PELTIER_COLD_EXTRUSION)
          }
          #endif
       } // every 2 seconds
