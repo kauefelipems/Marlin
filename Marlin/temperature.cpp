@@ -95,9 +95,10 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
 
 #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
   bool Temperature::cool_or_heat[HOTENDS] = {0};
-  #if HAS_HEATED_BED
+#endif
+
+#if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
     bool Temperature::cool_or_heat_bed = 0;
-  #endif
 #endif
 
 #if HAS_HEATED_BED //In the case of a heated bed
@@ -434,26 +435,26 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 
 	  #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
 	  
-		#ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
-			#define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
-		#endif
-		
-		if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
-			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
-			break;
-		}
-	  
-		else if (cool_or_heat_state && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
-			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
-			break;
-		}
+      #ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
+        #define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
+      #endif
+
+      if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
+        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
+        break;
+      }
+
+      else if (cool_or_heat_state && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
+        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
+        break;
+      }
 		
 	  #else
 	  
-		if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE){
-			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
-			break;
-		}
+      if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE){
+        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
+        break;
+      }
 	  #endif
 
     // Report heater states every 2 seconds
@@ -619,7 +620,7 @@ int Temperature::getHeaterPower(const int heater) {
 
 #endif // HAS_AUTO_FAN
 
-#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
   void Temperature::get_Cool_or_Heat(){ //assigns cool_or_heat 1 = cool 0 = heat considering room temperature and target temperature
     
@@ -636,22 +637,24 @@ int Temperature::getHeaterPower(const int heater) {
       if (temp_meas_ready){
         updateTemperaturesFromRawValues(); //update the variable values
         
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
         HOTEND_LOOP() cool_or_heat[e] = current_temperature[e] > target_temperature[e]; 
+        #endif
         
-        #if ENABLED(HAS_HEATED_BED)
+        #if ENABLED(HAS_HEATED_BED) && ENABLED(USES_PELTIER_COLD_BED)
           cool_or_heat_bed = current_temperature_bed > target_temperature_bed;
         #endif  
         break;
       }
       
-        //Implement TIME-OUT
+      //Implement TIME-OUT
       else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
         SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
         break;
       } 
     }
   }
-#endif
+#endif //ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
 //
 // Temperature Error Handlers
@@ -754,7 +757,7 @@ float Temperature::get_pid_output(const int8_t e) {
             if (++lpq_ptr >= lpq_len) lpq_ptr = 0; //reset the queue
             cTerm[HOTEND_INDEX] = (lpq[lpq_ptr] * planner.steps_to_mm[E_AXIS]) * PID_PARAM(Kc, HOTEND_INDEX);
             
-            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) //in the Peltier case, the whole hydrogel is inside the thermal module, hence it doesn't need extrusion scaling
+            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) //in the Peltier case, the whole hydrogel is inside the thermal module
               //Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
             #else
               pid_output += cTerm[HOTEND_INDEX];
@@ -815,7 +818,7 @@ float Temperature::get_pid_output(const int8_t e) {
     #if DISABLED(PID_OPENLOOP)
     
       pid_error_bed = 
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+        #if ENABLED(USES_PELTIER_COLD_BED)
           (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
         #endif        
               target_temperature_bed - current_temperature_bed;
@@ -825,7 +828,7 @@ float Temperature::get_pid_output(const int8_t e) {
       iTerm_bed = bedKi * temp_iState_bed;
 
       dTerm_bed = 
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+        #if ENABLED(USES_PELTIER_COLD_BED)
           (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
         #endif
               PID_K2 * bedKd * (current_temperature_bed - temp_dState_bed) + PID_K1 * dTerm_bed;
@@ -959,13 +962,17 @@ void Temperature::manage_heater() {
   #if HAS_HEATED_BED
 
     #if WATCH_THE_BED
-      // Make sure temperature is increasing
-      if (watch_bed_next_ms && ELAPSED(ms, watch_bed_next_ms)) {        // Time to check the bed?
-        if (degBed() < watch_target_bed_temp)                           // Failed to increase enough?
-          _temp_error(-1, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, -1));
-        else                                                            // Start again if the target is still far off
-          start_watching_bed();
-      }
+      #if ENABLED(USES_PELTIER_COLD_BED)
+        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      #else  
+        // Make sure temperature is increasing
+        if (watch_bed_next_ms && ELAPSED(ms, watch_bed_next_ms)) {        // Time to check the bed?
+          if (degBed() < watch_target_bed_temp)                           // Failed to increase enough?
+            _temp_error(-1, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, -1));
+          else                                                            // Start again if the target is still far off
+            start_watching_bed();
+        }
+      #endif //ENABLED(USES_PELTIER_COLD_BED)
     #endif // WATCH_THE_BED
 
     #if DISABLED(PIDTEMPBED)
@@ -986,9 +993,13 @@ void Temperature::manage_heater() {
     #endif
 
     #if HAS_THERMALLY_PROTECTED_BED
-      thermal_runaway_protection(&thermal_runaway_bed_state_machine, &thermal_runaway_bed_timer, current_temperature_bed, target_temperature_bed, -1, THERMAL_PROTECTION_BED_PERIOD, THERMAL_PROTECTION_BED_HYSTERESIS);
+      #if ENABLED(USES_PELTIER_COLD_BED)
+        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      #else  
+        thermal_runaway_protection(&thermal_runaway_bed_state_machine, &thermal_runaway_bed_timer, current_temperature_bed, target_temperature_bed, -1, THERMAL_PROTECTION_BED_PERIOD, THERMAL_PROTECTION_BED_HYSTERESIS);
+      #endif //ENABLED(USES_PELTIER_COLD_BED)
     #endif
-
+//-------------------------------------------------------------------------------------------Mark----------------------------------------------------------------------------------------------------------------
     #if HEATER_IDLE_HANDLER
       if (bed_idle_timeout_exceeded) {
         soft_pwm_amount_bed = 0;
