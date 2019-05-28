@@ -636,9 +636,8 @@ int Temperature::getHeaterPower(const int heater) {
       if (temp_meas_ready){
         updateTemperaturesFromRawValues(); //update the variable values
         
-        for (uint8_t i = 0; i < HOTENDS ; i++){  
-          cool_or_heat[i] = current_temperature[i] > target_temperature[i]; 
-        }
+        HOTEND_LOOP() cool_or_heat[e] = current_temperature[e] > target_temperature[e]; 
+        
         #if ENABLED(HAS_HEATED_BED)
           cool_or_heat_bed = current_temperature_bed > target_temperature_bed;
         #endif  
@@ -905,20 +904,28 @@ void Temperature::manage_heater() {
     #endif
 
     #if ENABLED(THERMAL_PROTECTION_HOTENDS)
-      // Check for thermal runaway
-      thermal_runaway_protection(&thermal_runaway_state_machine[e], &thermal_runaway_timer[e], current_temperature[e], target_temperature[e], e, THERMAL_PROTECTION_PERIOD, THERMAL_PROTECTION_HYSTERESIS);
+      #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      #else  
+        // Check for thermal runaway
+        thermal_runaway_protection(&thermal_runaway_state_machine[e], &thermal_runaway_timer[e], current_temperature[e], target_temperature[e], e, THERMAL_PROTECTION_PERIOD, THERMAL_PROTECTION_HYSTERESIS);
+      #endif
     #endif
 
-    soft_pwm_amount[e] = (current_temperature[e] > minttemp[e] || is_preheating(e)) && current_temperature[e] < maxttemp[e] ? (int)get_pid_output(e) >> 1 : 0;
+    soft_pwm_amount[e] = (current_temperature[e] > minttemp[e] || is_preheating(e)) && current_temperature[e] < maxttemp[e] ? (int)get_pid_output(e) >> 1 : 0; //turn off if not in the appropriate range
 
     #if WATCH_HOTENDS
-      // Make sure temperature is increasing
-      if (watch_heater_next_ms[e] && ELAPSED(ms, watch_heater_next_ms[e])) { // Time to check this extruder?
-        if (degHotend(e) < watch_target_temp[e])                             // Failed to increase enough?
-          _temp_error(e, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, e));
-        else                                                                 // Start again if the target is still far off
-          start_watching_heater(e);
-      }
+      #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------      
+      #else
+        // Make sure temperature is increasing
+        if (watch_heater_next_ms[e] && ELAPSED(ms, watch_heater_next_ms[e])) { // Time to check this extruder?
+          if (degHotend(e) < watch_target_temp[e])                             // Failed to increase enough?
+            _temp_error(e, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, e));
+          else                                                                 // Start again if the target is still far off
+            start_watching_heater(e);
+        }
+      #endif
     #endif
 
     #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT)
