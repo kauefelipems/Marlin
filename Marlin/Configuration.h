@@ -359,7 +359,12 @@
 #define HEATER_2_MINTEMP 5
 #define HEATER_3_MINTEMP 5
 #define HEATER_4_MINTEMP 5
-#define BED_MINTEMP 5
+
+#if(USES_PELTIER_COLD_BED)
+	#define BED_MINTEMP 0
+#else 
+	#define BED_MINTEMP 5
+#endif 
 
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
@@ -375,8 +380,12 @@
 #define HEATER_2_MAXTEMP 275
 #define HEATER_3_MAXTEMP 275
 #define HEATER_4_MAXTEMP 275
-#define BED_MAXTEMP 150
 
+#if(USES_PELTIER_COLD_BED)
+	#define BED_MAXTEMP 40
+#else 
+	#define BED_MAXTEMP 150
+#endif
 
 //===========================================================================
 //============================= PID Settings ================================
