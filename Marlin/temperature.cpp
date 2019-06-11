@@ -765,9 +765,9 @@ float Temperature::get_pid_output(const int8_t e) {
         pid_reset[HOTEND_INDEX] = true;
       }
       else if (pid_error[HOTEND_INDEX] < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0 //if negative error greater than linear range, or temperature target is zero, or idle for 
-                                                                                                          //too much time, turn the heater off
+                                                                                                          //too much time, turn the heater off and reset integrator
         #if HEATER_IDLE_HANDLER
-          || heater_idle_timeout_exceeded[HOTEND_INDEX]
+          || heater_idle_timeout_exceeded[HOTEND_INDEX] //or IDLE time was exceeded
         #endif
         ) {
         pid_output = 0;
@@ -804,6 +804,7 @@ float Temperature::get_pid_output(const int8_t e) {
               pid_output += cTerm[HOTEND_INDEX];
             #end
           }
+        
         #endif // PID_EXTRUSION_SCALING
 
         if (pid_output > PID_MAX) {
@@ -854,7 +855,7 @@ float Temperature::get_pid_output(const int8_t e) {
 }
 
 #if ENABLED(PIDTEMPBED)
-  float Temperature::get_pid_output_bed() {
+  float Temperature::get_pid_output_bed() {  //Implements IDLE and relay operation on the manage_heater method
     float pid_output;
     #if DISABLED(PID_OPENLOOP)
     
@@ -863,14 +864,14 @@ float Temperature::get_pid_output(const int8_t e) {
           (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
         #endif        
               target_temperature_bed - current_temperature_bed;
-      
+          
       pTerm_bed = bedKp * pid_error_bed;
       temp_iState_bed += pid_error_bed;
       iTerm_bed = bedKi * temp_iState_bed;
-
+    
       dTerm_bed = 
         #if ENABLED(USES_PELTIER_COLD_BED)
-          (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
+          (cool_or_heat_bed ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling 
         #endif
               PID_K2 * bedKd * (current_temperature_bed - temp_dState_bed) + PID_K1 * dTerm_bed;
       
@@ -956,7 +957,8 @@ void Temperature::manage_heater() {
       #endif
     #endif
 
-    soft_pwm_amount[e] = (current_temperature[e] > minttemp[e] || is_preheating(e)) && current_temperature[e] < maxttemp[e] ? (int)get_pid_output(e) >> 1 : 0; //turn off if not in the appropriate range
+    soft_pwm_amount[e] = (current_temperature[e] > minttemp[e] || is_preheating(e)) && current_temperature[e] < maxttemp[e] ? (int)get_pid_output(e) >> 1 : 0; //put pid_output in the PWM pin or 
+                                                                                                                                                                 //turn it off if not in the appropriate range
 
     #if WATCH_HOTENDS
       #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
@@ -1039,8 +1041,8 @@ void Temperature::manage_heater() {
       #else  
         thermal_runaway_protection(&thermal_runaway_bed_state_machine, &thermal_runaway_bed_timer, current_temperature_bed, target_temperature_bed, -1, THERMAL_PROTECTION_BED_PERIOD, THERMAL_PROTECTION_BED_HYSTERESIS);
       #endif //ENABLED(USES_PELTIER_COLD_BED)
-    #endif
-//-------------------------------------------------------------------------------------------Mark----------------------------------------------------------------------------------------------------------------
+    #endif //HAS_THERMALLY_PROTECTED_BED
+
     #if HEATER_IDLE_HANDLER
       if (bed_idle_timeout_exceeded) {
         soft_pwm_amount_bed = 0;
@@ -1053,23 +1055,53 @@ void Temperature::manage_heater() {
     {
       #if ENABLED(PIDTEMPBED)
         soft_pwm_amount_bed = WITHIN(current_temperature_bed, BED_MINTEMP, BED_MAXTEMP) ? (int)get_pid_output_bed() >> 1 : 0;
+        
       #else
+        
         // Check if temperature is within the correct band
         if (WITHIN(current_temperature_bed, BED_MINTEMP, BED_MAXTEMP)) {
           #if ENABLED(BED_LIMIT_SWITCHING)
-            if (current_temperature_bed >= target_temperature_bed + BED_HYSTERESIS)
-              soft_pwm_amount_bed = 0;
-            else if (current_temperature_bed <= target_temperature_bed - (BED_HYSTERESIS))
-              soft_pwm_amount_bed = MAX_BED_POWER >> 1;
+          
+            #if ENABLED(USES_PELTIER_COLD_BED)
+              if (cool_or_heat_bed){
+                if (current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
+                  soft_pwm_amount_bed = 0;
+                else if (current_temperature_bed >= target_temperature_bed + (BED_HYSTERESIS))
+                  soft_pwm_amount_bed = MAX_BED_POWER >> 1;
+              }
+          
+              else {
+                if (current_temperature_bed >= target_temperature_bed + BED_HYSTERESIS)
+                  soft_pwm_amount_bed = 0;
+                else if (current_temperature_bed <= target_temperature_bed - (BED_HYSTERESIS))
+                  soft_pwm_amount_bed = MAX_BED_POWER >> 1;
+              }
+          
+            #else
+              if (current_temperature_bed >= target_temperature_bed + BED_HYSTERESIS)
+                soft_pwm_amount_bed = 0;
+              else if (current_temperature_bed <= target_temperature_bed - (BED_HYSTERESIS))
+                soft_pwm_amount_bed = MAX_BED_POWER >> 1;
+            #endif
+          
           #else // !PIDTEMPBED && !BED_LIMIT_SWITCHING
-            soft_pwm_amount_bed = current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0;
-          #endif
+          
+            #if ENABLED(USES_PELTIER_COLD_BED)
+              soft_pwm_amount_bed = (cool_or_heat_bed 
+                                     ? (current_temperature_bed > target_temperature_bed ? MAX_BED_POWER >> 1 : 0)
+                                     : (current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0)
+            #else
+              soft_pwm_amount_bed = current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0;
+                                     
+            #endif
+                                     
+          #endif //ENABLED(BED_LIMIT_SWITCHING)
         }
         else {
           soft_pwm_amount_bed = 0;
           WRITE_HEATER_BED(LOW);
         }
-      #endif
+      #endif // ENABLED(PIDTEMPBED)
     }
   #endif // HAS_HEATED_BED
 }
