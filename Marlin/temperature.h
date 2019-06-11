@@ -616,6 +616,10 @@ class Temperature {
 
   private:
 
+	#if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+	  static void get_Cool_or_Heat();
+	#endif
+	
     #if ENABLED(FAST_PWM_FAN)
       static void setPwmFrequency(const pin_t pin, int val);
     #endif

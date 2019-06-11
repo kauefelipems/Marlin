@@ -197,7 +197,7 @@ volatile bool Temperature::temp_meas_ready = false; //Flag for "measurement read
   float Temperature::pid_error[HOTENDS];
   bool Temperature::pid_reset[HOTENDS];
 #endif
-```
+
 uint16_t Temperature::raw_temp_value[MAX_EXTRUDERS] = { 0 };
 
 // Init min and max temp with extreme values to prevent false errors during startup
@@ -349,13 +349,13 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     #endif
     
 	//If bed is not Peltier, then it's always heating
-    #if ENABLED(USES_PELTIER_COLD_BED)
-      if(hotend < 0) cool_or_heat_state = ambient_temperature > target;
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+      if(hotend > -1) cool_or_heat_state = (ambient_temperature[hotend] > target) ? 1 : 0;
     #endif
 	  
 	//If extruder is not Peltier, then it's always heating
-    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      if(hotend > -1) cool_or_heat_state = ambient_temperature_bed > target;
+    #if ENABLED(USES_PELTIER_COLD_BED)
+      if(hotend < 0) cool_or_heat_state = (ambient_temperature_bed > target) ? 1 : 0
     #endif
 	
     // PID Tuning loop
@@ -672,7 +672,7 @@ int Temperature::getHeaterPower(const int heater) {
       HOTEND_LOOP() cool_or_heat[e] = ambient_temperature[e] > target_temperature[e]; 
     #endif
 
-    #if ENABLED(HAS_HEATED_BED) && ENABLED(USES_PELTIER_COLD_BED)
+    #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
       cool_or_heat_bed = ambient_temperature_bed > target_temperature_bed;
     #endif  
 
@@ -784,7 +784,7 @@ float Temperature::get_pid_output(const int8_t e) {
               //Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
             #else
               pid_output += cTerm[HOTEND_INDEX];
-            #end
+            #endif
           }
         
         #endif // PID_EXTRUSION_SCALING
@@ -1554,7 +1554,7 @@ void Temperature::init() {
             HOTEND_LOOP() ambient_temperature[e] = current_temperature[e]; 
           #endif
 
-          #if ENABLED(HAS_HEATED_BED) && ENABLED(USES_PELTIER_COLD_BED)
+          #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
             ambient_temperature_bed = current_temperature_bed;
           #endif  
           break;
