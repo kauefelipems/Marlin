@@ -350,12 +350,12 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     
 	//If bed is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_BED)
-      if(hotend < 0) cool_or_heat_state = cool_or_heat_bed;
+      if(hotend < 0) cool_or_heat_state = ambient_temperature > target;
     #endif
 	  
 	//If extruder is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      if(hotend > -1) cool_or_heat_state = cool_or_heat[hotend];
+      if(hotend > -1) cool_or_heat_state = ambient_temperature_bed > target;
     #endif
 	
     // PID Tuning loop
