@@ -86,6 +86,7 @@ Temperature thermalManager; //instantiating the Temperature class
 // public:
 
 float Temperature::current_temperature[HOTENDS] = { 0.0 }; //Initializing temperature data variables
+
 int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
         Temperature::target_temperature[HOTENDS] = { 0 };
 
@@ -95,10 +96,12 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
 
 #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
   bool Temperature::cool_or_heat[HOTENDS] = {0};
+  float Temperature :: ambient_temperature[HOTENDS] = { 0.0 };
 #endif
 
 #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
     bool Temperature::cool_or_heat_bed = 0;
+    float Temperature :: ambient_temperature_bed = 0.0;
 #endif
 
 #if HAS_HEATED_BED //In the case of a heated bed
@@ -471,7 +474,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     // Report heater states every 2 seconds
     if (ELAPSED(ms, next_temp_ms)) {
       #if HAS_TEMP_SENSOR
-        print_heaterstates(); //print temperature on the screen (?)
+        print_heaterstates(); //print temperature on the screen
         SERIAL_EOL();
       #endif
       next_temp_ms = ms + 2000UL;
@@ -664,36 +667,15 @@ int Temperature::getHeaterPower(const int heater) {
 #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
   void Temperature::get_Cool_or_Heat(){ //assigns cool_or_heat 1 = cool 0 = heat considering room temperature and target temperature
-    
-    const millis_t ms = millis();
-    millis_t wait_time = ms;
-    
-    #ifndef MAX_ADC_WAIT_TIME
-      #define MAX_ADC_WAIT_TIME 10
+ 
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+      HOTEND_LOOP() cool_or_heat[e] = ambient_temperature[e] > target_temperature[e]; 
     #endif
-    
-    while(1){ //wait for ADC to read temperature
-      wait_time = millis();
-      
-      if (temp_meas_ready){
-        updateTemperaturesFromRawValues(); //update the variable values
-        
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-        HOTEND_LOOP() cool_or_heat[e] = current_temperature[e] > target_temperature[e]; 
-        #endif
-        
-        #if ENABLED(HAS_HEATED_BED) && ENABLED(USES_PELTIER_COLD_BED)
-          cool_or_heat_bed = current_temperature_bed > target_temperature_bed;
-        #endif  
-        break;
-      }
-      
-      //Implement TIME-OUT
-      else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
-        SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
-        break;
-      } 
-    }
+
+    #if ENABLED(HAS_HEATED_BED) && ENABLED(USES_PELTIER_COLD_BED)
+      cool_or_heat_bed = ambient_temperature_bed > target_temperature_bed;
+    #endif  
+
   }
 #endif //ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
@@ -939,6 +921,10 @@ void Temperature::manage_heater() {
 
   #if WATCH_HOTENDS || WATCH_THE_BED || DISABLED(PIDTEMPBED) || HAS_AUTO_FAN || HEATER_IDLE_HANDLER
     millis_t ms = millis();
+  #endif
+  
+  #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+    get_Cool_or_Heat();
   #endif
 
   HOTEND_LOOP() {
@@ -1547,6 +1533,41 @@ void Temperature::init() {
   #if ENABLED(PROBING_HEATERS_OFF)
     paused = false;
   #endif
+  
+  #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+     //Get ambient temperature for the Cool_or_heat() tests 
+    
+      const millis_t ms = millis();
+      millis_t wait_time = ms;
+
+      #ifndef MAX_ADC_WAIT_TIME
+        #define MAX_ADC_WAIT_TIME 10
+      #endif
+
+      while(1){ //wait for ADC to read temperature
+        wait_time = millis();
+
+        if (temp_meas_ready){
+          updateTemperaturesFromRawValues(); //update the variable values
+
+          #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+            HOTEND_LOOP() ambient_temperature[e] = current_temperature[e]; 
+          #endif
+
+          #if ENABLED(HAS_HEATED_BED) && ENABLED(USES_PELTIER_COLD_BED)
+            ambient_temperature_bed = current_temperature_bed;
+          #endif  
+          break;
+        }
+
+        //Implement TIME-OUT
+        else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
+          SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
+          break;
+        } 
+      }
+  #endif
+  
 }
 
 #if ENABLED(FAST_PWM_FAN)

@@ -129,8 +129,11 @@ class Temperature {
 
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
 		static bool cool_or_heat[HOTENDS];
+		static float ambient_temperature[HOTENDS];
+	
 		#if HAS_HEATED_BED
 			static bool cool_or_heat_bed;
+			static float ambient_temperature_bed;
 		#endif
     #endif
 
