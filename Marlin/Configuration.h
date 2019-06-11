@@ -318,6 +318,14 @@
 #define TEMP_SENSOR_BED 0
 #define TEMP_SENSOR_CHAMBER 0
 
+
+// Enable peltier cold extrusion for bioprinting
+#define USES_PELTIER_COLD_EXTRUSION 1
+
+
+// Disable peltier cold bed for bioprinting
+#define USES_PELTIER_COLD_BED 0
+
 // Dummy thermistor constant temperature readings, for use with 998 and 999
 #define DUMMY_THERMISTOR_998_VALUE 25
 #define DUMMY_THERMISTOR_999_VALUE 100
@@ -369,8 +377,6 @@
 #define HEATER_4_MAXTEMP 275
 #define BED_MAXTEMP 150
 
-// Enable peltier cold extrusion for bioprinting
-#define USES_PELTIER_COLD_EXTRUSION 
 
 //===========================================================================
 //============================= PID Settings ================================
