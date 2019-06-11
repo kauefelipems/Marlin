@@ -339,17 +339,20 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     SHV(soft_pwm_amount, bias = d = (MAX_BED_POWER) >> 1, bias = d = (PID_MAX) >> 1); //Sets hotends soft_pwm_amount to maximum value allowed PID_MAX = 255, but bit shifts before sending to nozzle 
 	
     wait_for_heatup = true; // Can be interrupted with M108
-    
+	  
+	  
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)	  
       bool cool_or_heat_state = 0; //initialize as heating
     #endif
     
+	//If bed is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_BED)
       if(hotend < 0) cool_or_heat_state = cool_or_heat_bed;
     #endif
-
+	  
+	//If extruder is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      else cool_or_heat_state = cool_or_heat[hotend];
+      if(hotend > -1) cool_or_heat_state = cool_or_heat[hotend];
     #endif
 	
     // PID Tuning loop
@@ -440,31 +443,30 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     #ifndef MAX_OVERSHOOT_PID_AUTOTUNE
       #define MAX_OVERSHOOT_PID_AUTOTUNE 20
     #endif
-
-    #ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
-      #define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
-    #endif
       
-	  #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
-	  
+	#if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+		
+		#ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
+      		#define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
+   		#endif
 
-      if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
-        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
-        break;
-      }
+		if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
+			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
+			break;
+		}
 
-      else if (cool_or_heat_state && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
-        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
-        break;
-      }
+		else if (cool_or_heat_state && (current < target - MAX_UNDERSHOOT_PID_AUTOTUNE)) {
+			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_LOW); 
+			break;
+		}
 
-	  #else
-	  
-      if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE){
-        SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
-        break;
-      }
-	  #endif
+	#else
+
+		if (current > target + MAX_OVERSHOOT_PID_AUTOTUNE){
+			SERIAL_PROTOCOLLNPGM(MSG_PID_TEMP_TOO_HIGH); 
+			break;
+		}
+	#endif
 
     // Report heater states every 2 seconds
     if (ELAPSED(ms, next_temp_ms)) {
@@ -485,9 +487,36 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             hotend < 0
           #endif
         ) {
-          #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-            //Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-          #else 
+          #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+			
+			if ( 
+				#if ENABLED(USES_PELTIER_COLD_EXTRUSION) && ENABLED(USES_PELTIER_COLD_BED)
+					true
+				#elif USES_PELTIER_COLD_EXTRUSION
+					hotend >= 0
+				#else
+					hotend < 0
+				#endif
+			) {
+            	//Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------				
+			}
+			
+			else {
+				if (!heated) {                                          // If not yet reached target...
+				  if (current > next_watch_temp) {                      // Over the watch temp?
+				  next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
+				  temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
+				  if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
+				  }
+				  else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
+				  _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
+				}
+				else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
+				  _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+			}
+			
+		  #else 
+			
             if (!heated) {                                          // If not yet reached target...
               if (current > next_watch_temp) {                      // Over the watch temp?
               next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
@@ -499,9 +528,11 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             }
             else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
               _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+			
           #endif // ENABLED(USES_PELTIER_COLD_EXTRUSION)
          }
-         #endif
+		
+         #endif //(WATCH_THE_BED || WATCH_HOTENDS)
       } // every 2 seconds
 
       // Timeout after MAX_CYCLE_TIME_PID_AUTOTUNE minutes since the last undershoot/overshoot cycle
