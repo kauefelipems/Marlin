@@ -480,40 +480,41 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       #if (WATCH_THE_BED || WATCH_HOTENDS)
         if ( 
           #if WATCH_THE_BED && WATCH_HOTENDS
-            true
+           true
           #elif WATCH_HOTENDS
-            hotend >= 0
+           hotend >= 0
           #else
-            hotend < 0
+           hotend < 0
           #endif
         ) {
+          
           #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 			
-			if ( 
-				#if ENABLED(USES_PELTIER_COLD_EXTRUSION) && ENABLED(USES_PELTIER_COLD_BED)
-					true
-				#elif USES_PELTIER_COLD_EXTRUSION
-					hotend >= 0
-				#else
-					hotend < 0
-				#endif
-			) {
+          if ( 
+            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) && ENABLED(USES_PELTIER_COLD_BED)
+              true
+            #elif USES_PELTIER_COLD_EXTRUSION
+              hotend >= 0
+            #else
+              hotend < 0
+            #endif
+          ) {
             	//Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------				
-			}
+			    }
 			
-			else {
-				if (!heated) {                                          // If not yet reached target...
-				  if (current > next_watch_temp) {                      // Over the watch temp?
-				  next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
-				  temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-				  if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
-				  }
-				  else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
-				  _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
-				}
-				else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
-				  _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
-			}
+          else {
+            if (!heated) {                                          // If not yet reached target...
+              if (current > next_watch_temp) {                      // Over the watch temp?
+              next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
+              temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
+              if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
+              }
+              else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
+              _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
+            }
+            else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
+              _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
+          }
 			
 		  #else 
 			
