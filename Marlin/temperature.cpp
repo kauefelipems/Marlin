@@ -1551,11 +1551,15 @@ void Temperature::init() {
           updateTemperaturesFromRawValues(); //update the variable values
 
           #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-            HOTEND_LOOP() ambient_temperature[e] = current_temperature[e]; 
+            HOTEND_LOOP(){
+				ambient_temperature[e] = current_temperature[e];
+				target_temperature[e] = ambient_temperature[e];
+			}
           #endif
 
           #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
             ambient_temperature_bed = current_temperature_bed;
+			target_temperature_bed = ambient_temperature_bed;
           #endif  
           break;
         }
