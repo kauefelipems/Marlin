@@ -371,7 +371,7 @@
 // You should use MINTEMP for thermistor short/failure protection.
 
 #if(USES_PELTIER_COLD_EXTRUSION)
-	#define HEATER_0_MAXTEMP 65
+	#define HEATER_0_MAXTEMP 55
 #else
 	#define HEATER_0_MAXTEMP 275
 #endif
@@ -382,7 +382,7 @@
 #define HEATER_4_MAXTEMP 275
 
 #if(USES_PELTIER_COLD_BED)
-	#define BED_MAXTEMP 65
+	#define BED_MAXTEMP 55
 #else 
 	#define BED_MAXTEMP 150
 #endif
