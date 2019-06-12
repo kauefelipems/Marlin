@@ -806,7 +806,8 @@
 #define HAS_HEATER_BED (PIN_EXISTS(HEATER_BED))
 
 // Shorthand for common combinations
-#define HAS_HEATED_BED (HAS_TEMP_BED && HAS_HEATER_BED)
+//#define HAS_HEATED_BED (HAS_TEMP_BED && HAS_HEATER_BED)
+#define HAS_HEATED_BED 0
 #define HAS_TEMP_SENSOR (HAS_TEMP_HOTEND || HAS_HEATED_BED || HAS_TEMP_CHAMBER)
 
 // PID heating
