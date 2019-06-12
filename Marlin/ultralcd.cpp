@@ -3380,14 +3380,22 @@ void lcd_quick_feedback(const bool clear_buttons) {
   #if ENABLED(PID_AUTOTUNE_MENU)
 
     #if ENABLED(PIDTEMP)
-      int16_t autotune_temp[HOTENDS] = ARRAY_BY_HOTENDS1(150);
+	    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+        int16_t autotune_temp[HOTENDS] = ARRAY_BY_HOTENDS1(1);
+      #else
+        int16_t autotune_temp[HOTENDS] = ARRAY_BY_HOTENDS1(150);
+      #endif        
     #endif
 
     #if ENABLED(PIDTEMPBED)
-      int16_t autotune_temp_bed = 70;
+	    #if ENABLED(USES_PELTIER_COLD_BED)
+        int16_t autotune_temp_bed = 1;
+      #else
+        int16_t autotune_temp_bed = 70;
+      #endif      
     #endif
 
-    void _lcd_autotune(int16_t e) {
+    void _lcd_autotune(int16_t e) { //commands M303 with the desired settings to the heater (C = 5 default)
       char cmd[30];
       sprintf_P(cmd, PSTR("M303 U1 E%i S%i"), e,
         #if HAS_PID_FOR_BOTH
@@ -3553,7 +3561,7 @@ void lcd_quick_feedback(const bool clear_buttons) {
       #if ENABLED(PID_AUTOTUNE_MENU)
         #define PID_MENU_ITEMS(ELABEL, eindex) \
           _PID_MENU_ITEMS(ELABEL, eindex); \
-          MENU_MULTIPLIER_ITEM_EDIT_CALLBACK(int3, MSG_PID_AUTOTUNE ELABEL, &autotune_temp[eindex], 150, heater_maxtemp[eindex] - 15, lcd_autotune_callback_E ## eindex)
+          MENU_MULTIPLIER_ITEM_EDIT_CALLBACK(int3, MSG_PID_AUTOTUNE ELABEL, &autotune_temp[eindex], 1, heater_maxtemp[eindex] - 15, lcd_autotune_callback_E ## eindex)
       #else
         #define PID_MENU_ITEMS(ELABEL, eindex) _PID_MENU_ITEMS(ELABEL, eindex)
       #endif
