@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib
 
 class Plotter():
 
@@ -26,20 +27,22 @@ class Plotter():
                         curve2.append(float(x[y + 1])*100/255)
 
             x = np.arange(0, len(curve) * sample_time, sample_time)
-
+		
             fig, ax1 = plt.subplots()
-            ax1.set_xlabel('Time [min]')
+            ax1.set_xlabel('Time [min]',fontsize = 20)
 
             if key1:
                 y_1 = np.array(curve)
                 ax1.plot(x,y_1,'b')
-                ax1.set_ylabel('Temperature [°C]')
-
+                ax1.set_ylabel('Temperature [°C]', fontsize = 20)
+                ax1.yaxis.label.set_color('b')
+                
             if key2:
                 ax2 = ax1.twinx()
                 y_2 = np.array(curve2)
                 ax2.plot(x, y_2, 'r')
-                ax2.set_ylabel('Control Action [%]')
+                ax2.set_ylabel('Control Action [%]', fontsize = 20)
+                ax2.yaxis.label.set_color('r')
 
             fig.tight_layout()
             plt.title(file)
@@ -59,11 +62,16 @@ files_list ={
 }
 
 if __name__ == "__main__":
+    
+    matplotlib.use("TkAgg")
 
     plot = Plotter()
 
-    plot.plot_files(files_list['file1'], files_list['file2'], files_list['file3'], files_list['file4']
-                    , files_list['file5'], key="Input", key2="Output", period=0.16 / 60)
-
+    #plot.plot_files(files_list['file1'], files_list['file2'], files_list['file3'], files_list['file4']
+     #               , files_list['file5'], key="Input", key2="Output", period=0.16 / 60)
+	
     plot.plot_files(files_list['file6'],files_list['file7'],files_list['file8'],files_list['file9'],
                     key="T:", key2 = "@:", period = 1.8/60)
+	
+    #plot.plot_files(files_list['file1'], files_list['file2'], files_list['file3'], files_list['file4']
+     #               , files_list['file5'], key="Input", period=0.16 / 60)
