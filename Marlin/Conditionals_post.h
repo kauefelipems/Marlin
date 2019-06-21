@@ -955,6 +955,13 @@
 #define WRITE_FAN_N(n, v) WRITE_FAN##n(v)
 
 /**
+ * Cool or Heat Variable if uses Peltier Cold Extrusion
+ */
+
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+	#define WRITE_COOL_OR_HEAT(v) WRITE(COOL_OR_HEAT_PIN, v)
+#endif
+/**
  * Part Cooling fan multipliexer
  */
 #define HAS_FANMUX PIN_EXISTS(FANMUX0)

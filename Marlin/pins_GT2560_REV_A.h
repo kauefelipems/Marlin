@@ -81,8 +81,14 @@
 #define HEATER_0_PIN        2
 #define HEATER_1_PIN        3
 #define HEATER_BED_PIN      4
-#ifndef FAN_PIN
-  #define FAN_PIN           7
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION) //doesn't uses fan if uses peltier
+	#ifndef COOL_OR_HEAT_PIN
+	  #define COOL_OR_HEAT_PIN           7
+	#endif
+#else
+	#ifndef FAN_PIN
+	  #define FAN_PIN           7
+	#endif
 #endif
 
 //

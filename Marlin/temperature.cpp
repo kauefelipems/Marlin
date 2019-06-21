@@ -673,7 +673,15 @@ int Temperature::getHeaterPower(const int heater) {
   void Temperature::get_Cool_or_Heat(){ //assigns cool_or_heat 1 = cool 0 = heat considering room temperature and target temperature
  
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      HOTEND_LOOP() cool_or_heat[e] = ambient_temperature[e] > target_temperature[e]; 
+      HOTEND_LOOP() {
+        cool_or_heat[e] = ambient_temperature[e] > target_temperature[e];
+        if (cool_or_heat[e]){
+          WRITE_COOL_OR_HEAT(LOW);
+        }
+        else{
+          WRITE_COOL_OR_HEAT(HIGH);
+        }
+      }
     #endif
 
     #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
@@ -1329,7 +1337,7 @@ void Temperature::init() {
     SET_OUTPUT(HEATER_BED_PIN);
   #endif
 
-  #if HAS_FAN0
+  #if HAS_FAN0 
     SET_OUTPUT(FAN_PIN);
     #if ENABLED(FAST_PWM_FAN)
       setPwmFrequency(FAN_PIN, 1); // No prescaling. Pwm frequency = F_CPU/256/8
@@ -1539,7 +1547,8 @@ void Temperature::init() {
   #endif
   
   #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
-     //Get ambient temperature for the Cool_or_heat() tests 
+     
+     //Get ambient temperature for use in the Cool_or_heat() tests 
     
       const millis_t ms = millis();
       millis_t wait_time = ms;
@@ -1547,6 +1556,8 @@ void Temperature::init() {
       #ifndef MAX_ADC_WAIT_TIME
         #define MAX_ADC_WAIT_TIME 10
       #endif
+  
+      SET_OUTPUT(COOL_OR_HEAT_PIN);
 
       while(1){ //wait for ADC to read temperature
         wait_time = millis();
