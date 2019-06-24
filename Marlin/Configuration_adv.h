@@ -92,6 +92,9 @@
    */
   #define WATCH_TEMP_PERIOD 20                // Seconds
   #define WATCH_TEMP_INCREASE 2               // Degrees Celsius
+  #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+    #define WATCH_TEMP_DECREASE 2             // Degrees Celsius
+  #endif
 #endif
 
 /**
@@ -106,6 +109,9 @@
    */
   #define WATCH_BED_TEMP_PERIOD 60                // Seconds
   #define WATCH_BED_TEMP_INCREASE 2               // Degrees Celsius
+  #if ENABLED(USES_PELTIER_COLD_BED)
+    #define WATCH_BED_TEMP_DECREASE 2             // Degrees Celsius
+  #endif
 #endif
 
 #if ENABLED(PIDTEMP)

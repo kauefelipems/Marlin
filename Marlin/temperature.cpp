@@ -296,6 +296,9 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       
       const uint16_t watch_temp_period = GTV(WATCH_BED_TEMP_PERIOD, WATCH_TEMP_PERIOD); //If temperature does not INCREASE WATCH_BED_TEMP_INCREASE degrees, the protection resets
       const uint8_t watch_temp_increase = GTV(WATCH_BED_TEMP_INCREASE, WATCH_TEMP_INCREASE);
+      #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+        const uint8_t watch_temp_decrease = GTV(WATCH_BED_TEMP_DECREASE, WATCH_TEMP_DECREASE);
+      #endif
       const float watch_temp_target = target - float(watch_temp_increase + GTV(TEMP_BED_HYSTERESIS, TEMP_HYSTERESIS) + 1);
       millis_t temp_change_ms = next_temp_ms + watch_temp_period * 1000UL;
       float next_watch_temp = 0.0;
@@ -388,7 +391,11 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             SHV(soft_pwm_amount, (bias - d) >> 1, (bias - d) >> 1); //relay off
             t1 = ms; //Mark time when it turns off
             t_high = t1 - t2; //higher than target time
-            cool_or_heat_state ? min = target : max = target; 	//reseting the value of min or max 
+            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)	  
+              cool_or_heat_state ? min = target : max = target; 	//reseting the value of min or max
+            #else 
+              max = target;
+            #endif
           }
         }
 
@@ -439,7 +446,11 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
             }
             SHV(soft_pwm_amount, (bias + d) >> 1, (bias + d) >> 1); //Relay on
             cycles++; //update cycles
-            cool_or_heat_state ? max = target : min = target;
+            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)	  
+              cool_or_heat_state ? max = target : min = target;
+            #else
+              min = target;
+            #endif
           }
         }
       }
@@ -452,7 +463,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
 	#if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 		
 		#ifndef MAX_UNDERSHOOT_PID_AUTOTUNE	
-      		#define MAX_UNDERSHOOT_PID_AUTOTUNE 20 //needed when cooling
+      		#define MAX_UNDERSHOOT_PID_AUTOTUNE 5 //needed when cooling
    		#endif
 
 		if (!cool_or_heat_state && (current > target + MAX_OVERSHOOT_PID_AUTOTUNE)) {
@@ -491,64 +502,42 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
           #else
            hotend < 0
           #endif
-        ) {
-          
-          #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
-			
-          if ( 
-            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) && ENABLED(USES_PELTIER_COLD_BED)
-              true
-            #elif USES_PELTIER_COLD_EXTRUSION
-              hotend >= 0
-            #else
-              hotend < 0
-            #endif
-          ) {
-            	//Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------				
-			    }
-			
-          else {
-            if (!heated) {                                          // If not yet reached target...
-              if (current > next_watch_temp) {                      // Over the watch temp?
-              next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
+        ) {	
+           if (!heated) {                                         // If not yet reached target...
+            if (RELAY_OFF_THRESHOLD(current,next_watch_temp)) {   // Over the watch temp?
+              #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+                next_watch_temp = cool_or_heat_state ? current - watch_temp_decrease : current + watch_temp_increase;    // - set the next temp to watch for
+              #else
+                next_watch_temp = current + watch_temp_increase;
+              #endif 
               temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-              if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
-              }
-              else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
+              if (RELAY_OFF_THRESHOLD(current,watch_temp_target)) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
+            }
+            else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
               _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
             }
-            else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
+            else if (
+              #ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+                RELAY_ON_THRESHOLD(current,cool_or_heat_state ? target + (MAX_UNDERSHOOT_PID_AUTOTUNE) : target - (MAX_OVERSHOOT_PID_AUTOTUNE))
+              #else
+                RELAY_ON_THRESHOLD(current,target - (MAX_OVERSHOOT_PID_AUTOTUNE))
+              #endif
+              ) // Heated, then temperature fell too far?
+              
               _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
-          }
-			
-		  #else 
-			
-            if (!heated) {                                          // If not yet reached target...
-              if (current > next_watch_temp) {                      // Over the watch temp?
-              next_watch_temp = current + watch_temp_increase;    // - set the next temp to watch for
-              temp_change_ms = ms + watch_temp_period * 1000UL;   // - move the expiration timer up
-              if (current > watch_temp_target) heated = true;     // - Flag if target temperature reached so that the cooling process doesn't reset the thing
-              }
-              else if (ELAPSED(ms, temp_change_ms))                 // Watch timer expired
-              _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
-            }
-            else if (current < target - (MAX_OVERSHOOT_PID_AUTOTUNE)) // Heated, then temperature fell too far?
-              _temp_error(hotend, PSTR(MSG_T_THERMAL_RUNAWAY), TEMP_ERR_PSTR(MSG_THERMAL_RUNAWAY, hotend));
-			
-          #endif // ENABLED(USES_PELTIER_COLD_EXTRUSION)
-         }
-		
-         #endif //(WATCH_THE_BED || WATCH_HOTENDS)
-      } // every 2 seconds
+			  }
+      #endif //(WATCH_THE_BED || WATCH_HOTENDS)
+    } // every 2 seconds
 
       // Timeout after MAX_CYCLE_TIME_PID_AUTOTUNE minutes since the last undershoot/overshoot cycle
       #ifndef MAX_CYCLE_TIME_PID_AUTOTUNE
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-			#define MAX_CYCLE_TIME_PID_AUTOTUNE 5L
-		#else
-			#define MAX_CYCLE_TIME_PID_AUTOTUNE 20L
-		#endif
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+			    #define MAX_CYCLE_TIME_PID_AUTOTUNE 5L
+		    #else
+			   #define MAX_CYCLE_TIME_PID_AUTOTUNE 20L
+		    #endif
       #endif
+      
       if (((ms - t1) + (ms - t2)) > (MAX_CYCLE_TIME_PID_AUTOTUNE * 60L * 1000L)) {
         SERIAL_PROTOCOLLNPGM(MSG_PID_TIMEOUT);
         break;
@@ -788,12 +777,7 @@ float Temperature::get_pid_output(const int8_t e) {
 
             if (++lpq_ptr >= lpq_len) lpq_ptr = 0; //reset the queue
             cTerm[HOTEND_INDEX] = (lpq[lpq_ptr] * planner.steps_to_mm[E_AXIS]) * PID_PARAM(Kc, HOTEND_INDEX);
-            
-            #if ENABLED(USES_PELTIER_COLD_EXTRUSION) //in the Peltier case, the whole hydrogel is inside the thermal module
-              //Peltier case not implemented yet -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-            #else
-              pid_output += cTerm[HOTEND_INDEX];
-            #endif
+            pid_output += cTerm[HOTEND_INDEX];
           }
         
         #endif // PID_EXTRUSION_SCALING
@@ -933,7 +917,7 @@ void Temperature::manage_heater() {
   #endif
   
   #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
-    get_Cool_or_Heat();
+    get_Cool_or_Heat(); //update cool or heat states depending on the target
   #endif
 
   HOTEND_LOOP() {
@@ -944,12 +928,8 @@ void Temperature::manage_heater() {
     #endif
 
     #if ENABLED(THERMAL_PROTECTION_HOTENDS)
-      #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-      #else  
-        // Check for thermal runaway
-        thermal_runaway_protection(&thermal_runaway_state_machine[e], &thermal_runaway_timer[e], current_temperature[e], target_temperature[e], e, THERMAL_PROTECTION_PERIOD, THERMAL_PROTECTION_HYSTERESIS);
-      #endif
+     // Check for thermal runaway
+     thermal_runaway_protection(&thermal_runaway_state_machine[e], &thermal_runaway_timer[e], current_temperature[e], target_temperature[e], e, THERMAL_PROTECTION_PERIOD, THERMAL_PROTECTION_HYSTERESIS);
     #endif
 
     soft_pwm_amount[e] = (current_temperature[e] > minttemp[e] || is_preheating(e)) && current_temperature[e] < maxttemp[e] ? (int)get_pid_output(e) >> 1 : 0; //put pid_output in the PWM pin or 
