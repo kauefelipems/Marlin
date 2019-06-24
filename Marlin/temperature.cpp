@@ -296,9 +296,15 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
       
       const uint16_t watch_temp_period = GTV(WATCH_BED_TEMP_PERIOD, WATCH_TEMP_PERIOD); //If temperature does not INCREASE WATCH_BED_TEMP_INCREASE degrees, the protection resets
       const uint8_t watch_temp_increase = GTV(WATCH_BED_TEMP_INCREASE, WATCH_TEMP_INCREASE);
-      #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+    
+      #if ENABLED(USES_PELTIER_COLD_EXTRUSION) && ENABLED(USES_PELTIER_COLD_BED)
         const uint8_t watch_temp_decrease = GTV(WATCH_BED_TEMP_DECREASE, WATCH_TEMP_DECREASE);
+      #elif ENABLED(USES_PELTIER_COLD_EXTRUSION)
+        const uint8_t watch_temp_decrease = WATCH_TEMP_DECREASE;
+      #elif ENABLED(USES_PELTIER_COLD_BED)
+        const uint8_t watch_temp_decrease = WATCH_BED_TEMP_DECREASE;
       #endif
+    
       const float watch_temp_target = target - float(watch_temp_increase + GTV(TEMP_BED_HYSTERESIS, TEMP_HYSTERESIS) + 1);
       millis_t temp_change_ms = next_temp_ms + watch_temp_period * 1000UL;
       float next_watch_temp = 0.0;
@@ -355,7 +361,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
       if(hotend > -1) cool_or_heat_state = (ambient_temperature[hotend] > target) ? 1 : 0;
       WRITE_COOL_OR_HEAT(cool_or_heat_state ? LOW:HIGH); //Set thermal switch
-	#endif
+	  #endif
 	  
 	//If extruder is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_BED)
@@ -929,7 +935,7 @@ void Temperature::manage_heater() {
 
     #if ENABLED(THERMAL_PROTECTION_HOTENDS)
      // Check for thermal runaway
-     thermal_runaway_protection(&thermal_runaway_state_machine[e], &thermal_runaway_timer[e], current_temperature[e], target_temperature[e], e, THERMAL_PROTECTION_PERIOD, THERMAL_PROTECTION_HYSTERESIS);
+        thermal_runaway_protection(&thermal_runaway_state_machine[e], &thermal_runaway_timer[e], current_temperature[e], target_temperature[e], e, THERMAL_PROTECTION_PERIOD, THERMAL_PROTECTION_HYSTERESIS);
     #endif
 
     soft_pwm_amount[e] = (current_temperature[e] > minttemp[e] || is_preheating(e)) && current_temperature[e] < maxttemp[e] ? (int)get_pid_output(e) >> 1 : 0; //put pid_output in the PWM pin or 
@@ -1011,11 +1017,7 @@ void Temperature::manage_heater() {
     #endif
 
     #if HAS_THERMALLY_PROTECTED_BED
-      #if ENABLED(USES_PELTIER_COLD_BED)
-        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-      #else  
-        thermal_runaway_protection(&thermal_runaway_bed_state_machine, &thermal_runaway_bed_timer, current_temperature_bed, target_temperature_bed, -1, THERMAL_PROTECTION_BED_PERIOD, THERMAL_PROTECTION_BED_HYSTERESIS);
-      #endif //ENABLED(USES_PELTIER_COLD_BED)
+      thermal_runaway_protection(&thermal_runaway_bed_state_machine, &thermal_runaway_bed_timer, current_temperature_bed, target_temperature_bed, -1, THERMAL_PROTECTION_BED_PERIOD, THERMAL_PROTECTION_BED_HYSTERESIS);
     #endif //HAS_THERMALLY_PROTECTED_BED
 
     #if HEATER_IDLE_HANDLER
@@ -1542,18 +1544,18 @@ void Temperature::init() {
         if (temp_meas_ready){
           updateTemperaturesFromRawValues(); //update the variable values
 
-          #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-            HOTEND_LOOP(){
-				ambient_temperature[e] = current_temperature[e];
-				target_temperature[e] = ambient_temperature[e];
-			}
+        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+          HOTEND_LOOP(){
+				    ambient_temperature[e] = current_temperature[e];
+				    target_temperature[e] = ambient_temperature[e];
+			    }
           #endif
 
-          #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
+         #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
             ambient_temperature_bed = current_temperature_bed;
-			target_temperature_bed = ambient_temperature_bed;
-          #endif  
-          break;
+			      target_temperature_bed = ambient_temperature_bed;
+         #endif  
+         break;
         }
 
         //Implement TIME-OUT
@@ -1673,6 +1675,22 @@ void Temperature::init() {
 
     const int heater_index = heater_id >= 0 ? heater_id : HOTENDS;
 
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)	  
+      bool cool_or_heat_state = 0; //initialize as heating
+    #endif
+    
+	//If bed is not Peltier, then it's always heating
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+      if(hotend > -1) cool_or_heat_state = (ambient_temperature[hotend] > target) ? 1 : 0;
+      WRITE_COOL_OR_HEAT(cool_or_heat_state ? LOW:HIGH); //Set thermal switch
+	  #endif
+	  
+	//If extruder is not Peltier, then it's always heating
+    #if ENABLED(USES_PELTIER_COLD_BED)
+      if(hotend < 0) cool_or_heat_state = (ambient_temperature_bed > target) ? 1 : 0
+    #endif
+        
+        
     #if HEATER_IDLE_HANDLER
       // If the heater idle timeout expires, restart
       if ((heater_id >= 0 && heater_idle_timeout_exceeded[heater_id])
@@ -1698,11 +1716,26 @@ void Temperature::init() {
       case TRInactive: break;
       // When first heating, wait for the temperature to be reached then go to Stable state
       case TRFirstHeating:
-        if (current < tr_target_temperature[heater_index]) break;
+        if (
+          #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+            cool_or_heat_state ? current > tr_target_temperature[heater_index]
+                               : current < tr_target_temperature[heater_index]
+          #else
+            current < tr_target_temperature[heater_index]
+          #endif
+        ) break;
         *state = TRStable;
       // While the temperature is stable watch for a bad temperature
       case TRStable:
-        if (current >= tr_target_temperature[heater_index] - hysteresis_degc) {
+        if (
+          #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+            cool_or_heat_state ? current <= tr_target_temperature[heater_index] + hysteresis_degc
+                               : current >= tr_target_temperature[heater_index] - hysteresis_degc
+          #else
+            current >= tr_target_temperature[heater_index] - hysteresis_degc
+          #endif
+          
+          ){
           *timer = millis() + period_seconds * 1000UL;
           break;
         }
