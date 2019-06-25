@@ -523,7 +523,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
               _temp_error(hotend, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, hotend));
             }
             else if (
-              #ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
+              #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
                 RELAY_ON_THRESHOLD(current,cool_or_heat_state ? target + (MAX_UNDERSHOOT_PID_AUTOTUNE) : target - (MAX_OVERSHOOT_PID_AUTOTUNE))
               #else
                 RELAY_ON_THRESHOLD(current,target - (MAX_OVERSHOOT_PID_AUTOTUNE))
@@ -1682,7 +1682,6 @@ void Temperature::init() {
 	//If bed is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
       if(hotend > -1) cool_or_heat_state = (ambient_temperature[hotend] > target) ? 1 : 0;
-      WRITE_COOL_OR_HEAT(cool_or_heat_state ? LOW:HIGH); //Set thermal switch
 	  #endif
 	  
 	//If extruder is not Peltier, then it's always heating
