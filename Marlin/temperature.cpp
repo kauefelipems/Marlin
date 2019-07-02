@@ -359,13 +359,13 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     
 	//If bed is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      if(hotend > -1) cool_or_heat_state = (ambient_temperature[hotend] > target) ? 1 : 0;
+      if(hotend > -1) cool_or_heat_state = cool_or_heat_bed[hotend];
       WRITE_COOL_OR_HEAT(cool_or_heat_state ? LOW:HIGH); //Set thermal switch
 	  #endif
 	  
 	//If extruder is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_BED)
-      if(hotend < 0) cool_or_heat_state = (ambient_temperature_bed > target) ? 1 : 0
+      if(hotend < 0) cool_or_heat_state = cool_or_heat_bed;
     #endif	
 	
 		  
@@ -1681,12 +1681,12 @@ void Temperature::init() {
     
 	//If bed is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      if(hotend > -1) cool_or_heat_state = (ambient_temperature[hotend] > target) ? 1 : 0;
+      if(heater_id > -1) cool_or_heat_state = cool_or_heat[heater_id];
 	  #endif
 	  
 	//If extruder is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_BED)
-      if(hotend < 0) cool_or_heat_state = (ambient_temperature_bed > target) ? 1 : 0
+      if(heater_id < 0) cool_or_heat_state = cool_or_heat_bed;
     #endif
         
         
