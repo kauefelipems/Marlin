@@ -324,7 +324,9 @@
 
 
 // Disable peltier cold bed for bioprinting
-#define USES_PELTIER_COLD_BED 0
+#if HAS_HEATED_BED
+	#define USES_PELTIER_COLD_BED 1
+#endif
 
 // Dummy thermistor constant temperature readings, for use with 998 and 999
 #define DUMMY_THERMISTOR_998_VALUE 25

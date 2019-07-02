@@ -359,7 +359,7 @@ uint8_t Temperature::soft_pwm_amount[HOTENDS];
     
 	//If bed is not Peltier, then it's always heating
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-      if(hotend > -1) cool_or_heat_state = cool_or_heat_bed[hotend];
+      if(hotend > -1) cool_or_heat_state = cool_or_heat[hotend];
       WRITE_COOL_OR_HEAT(cool_or_heat_state ? LOW:HIGH); //Set thermal switch
 	  #endif
 	  
@@ -668,7 +668,7 @@ int Temperature::getHeaterPower(const int heater) {
 #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
   void Temperature::get_Cool_or_Heat(){ //assigns cool_or_heat 1 = cool 0 = heat considering room temperature and target temperature
- 
+  
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
       HOTEND_LOOP() {
         cool_or_heat[e] = ambient_temperature[e] > target_temperature[e];
@@ -943,7 +943,14 @@ void Temperature::manage_heater() {
 
     #if WATCH_HOTENDS
       #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------      
+        // Make sure temperature is increasing or decreasing
+        if (watch_heater_next_ms[e] && ELAPSED(ms, watch_heater_next_ms[e])) { // Time to check this extruder?
+          if (cool_or_heat[e] ? degHotend(e) > watch_target_temp[e] 
+                              : degHotend(e) < watch_target_temp[e])                             // Failed to change enough?
+            _temp_error(e, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, e));
+          else                                                                 // Start again if the target is still far off
+            start_watching_heater(e);
+        }
       #else
         // Make sure temperature is increasing
         if (watch_heater_next_ms[e] && ELAPSED(ms, watch_heater_next_ms[e])) { // Time to check this extruder?
@@ -952,7 +959,7 @@ void Temperature::manage_heater() {
           else                                                                 // Start again if the target is still far off
             start_watching_heater(e);
         }
-      #endif
+      #endif //ENABLED(USES_PELTIER_COLD_EXTRUSION)
     #endif
 
     #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT)
@@ -987,7 +994,14 @@ void Temperature::manage_heater() {
 
     #if WATCH_THE_BED
       #if ENABLED(USES_PELTIER_COLD_BED)
-        //Peltier case not implemented yet---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        // Make sure temperature is increasing or decreasing
+        if (watch_bed_next_ms && ELAPSED(ms, watch_bed_next_ms)) { // Time to check this extruder?
+          if (cool_or_heat_bed ? degBed() > watch_target_bed_temp 
+                               : degBed() < watch_target_bed_temp)                             // Failed to change enough?
+            _temp_error(-1, PSTR(MSG_T_HEATING_FAILED), TEMP_ERR_PSTR(MSG_HEATING_FAILED_LCD, -1));
+          else                                                                 // Start again if the target is still far off
+            start_watching_bed();
+        }
       #else  
         // Make sure temperature is increasing
         if (watch_bed_next_ms && ELAPSED(ms, watch_bed_next_ms)) {        // Time to check the bed?
@@ -1064,9 +1078,9 @@ void Temperature::manage_heater() {
           #else // !PIDTEMPBED && !BED_LIMIT_SWITCHING
           
             #if ENABLED(USES_PELTIER_COLD_BED)
-              soft_pwm_amount_bed = (cool_or_heat_bed 
+              soft_pwm_amount_bed = cool_or_heat_bed 
                                      ? (current_temperature_bed > target_temperature_bed ? MAX_BED_POWER >> 1 : 0)
-                                     : (current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0)
+                                     : (current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0);
             #else
               soft_pwm_amount_bed = current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0;
                                      
@@ -1617,12 +1631,24 @@ void Temperature::init() {
     #if HOTENDS == 1
       UNUSED(e);
     #endif
-    if (degHotend(HOTEND_INDEX) < degTargetHotend(HOTEND_INDEX) - (WATCH_TEMP_INCREASE + TEMP_HYSTERESIS + 1)) {
-      watch_target_temp[HOTEND_INDEX] = degHotend(HOTEND_INDEX) + WATCH_TEMP_INCREASE;
-      watch_heater_next_ms[HOTEND_INDEX] = millis() + (WATCH_TEMP_PERIOD) * 1000UL;
-    }
-    else
-      watch_heater_next_ms[HOTEND_INDEX] = 0;
+    #if ENABLED(USES_PELTIER_COLD_EXTRUSION)   //changes sanity test for the cooling situation. Stop watching after temperature reach a configurable margin from the target 
+      if (cool_or_heat[HOTENDS] ? degHotend(HOTEND_INDEX) > degTargetHotend(HOTEND_INDEX) + (WATCH_TEMP_DECREASE + TEMP_HYSTERESIS + 1)
+                                : degHotend(HOTEND_INDEX) < degTargetHotend(HOTEND_INDEX) - (WATCH_TEMP_INCREASE + TEMP_HYSTERESIS + 1)) {
+        
+        watch_target_temp[HOTEND_INDEX] = cool_or_heat[HOTENDS] ? degHotend(HOTEND_INDEX) - WATCH_TEMP_DECREASE //update the watch_target_temp for the watch comparison
+                                                                : degHotend(HOTEND_INDEX) + WATCH_TEMP_INCREASE;
+        watch_heater_next_ms[HOTEND_INDEX] = millis() + (WATCH_TEMP_PERIOD) * 1000UL; 
+      }
+      else
+        watch_heater_next_ms[HOTEND_INDEX] = 0;
+    #else
+      if (degHotend(HOTEND_INDEX) < degTargetHotend(HOTEND_INDEX) - (WATCH_TEMP_INCREASE + TEMP_HYSTERESIS + 1)) {
+        watch_target_temp[HOTEND_INDEX] = degHotend(HOTEND_INDEX) + WATCH_TEMP_INCREASE;
+        watch_heater_next_ms[HOTEND_INDEX] = millis() + (WATCH_TEMP_PERIOD) * 1000UL;
+      }
+      else
+        watch_heater_next_ms[HOTEND_INDEX] = 0;
+    #endif //ENABLED(USES_PELTIER_COLD_EXTRUSION)
   }
 #endif
 
@@ -1633,13 +1659,26 @@ void Temperature::init() {
    * This is called when the temperature is set. (M140, M190)
    */
   void Temperature::start_watching_bed() {
-    if (degBed() < degTargetBed() - (WATCH_BED_TEMP_INCREASE + TEMP_BED_HYSTERESIS + 1)) {
-      watch_target_bed_temp = degBed() + WATCH_BED_TEMP_INCREASE;
-      watch_bed_next_ms = millis() + (WATCH_BED_TEMP_PERIOD) * 1000UL;
-    }
-    else
-      watch_bed_next_ms = 0;
-  }
+    #if ENABLED(USES_PELTIER_COLD_BED)   //changes sanity test for the cooling situation. Stop watching after temperature reach a configurable margin from the target 
+      if (cool_or_heat_bed ? degBed() > degTargetBed() + (WATCH_BED_TEMP_DECREASE + TEMP_BED_HYSTERESIS + 1)
+                           : degBed() < degTargetBed() - (WATCH_BED_TEMP_INCREASE + TEMP_BED_HYSTERESIS + 1)) {
+        
+        watch_target_bed_temp = cool_or_heat_bed ? degBed() + WATCH_BED_TEMP_DECREASE 
+                                                 : degBed() + WATCH_BED_TEMP_INCREASE;
+        watch_bed_next_ms = millis() + (WATCH_BED_TEMP_PERIOD) * 1000UL;
+      }
+      else
+        watch_bed_next_ms = 0;
+    
+    #else
+      if (degBed() < degTargetBed() - (WATCH_BED_TEMP_INCREASE + TEMP_BED_HYSTERESIS + 1)) {
+        watch_target_bed_temp = degBed() + WATCH_BED_TEMP_INCREASE;
+        watch_bed_next_ms = millis() + (WATCH_BED_TEMP_PERIOD) * 1000UL;
+      }
+      else
+        watch_bed_next_ms = 0;
+    #endif //ENABLED(USES_PELTIER_COLD_EXTRUSION)
+  } 
 #endif
 
 #if ENABLED(THERMAL_PROTECTION_HOTENDS) || HAS_THERMALLY_PROTECTED_BED
