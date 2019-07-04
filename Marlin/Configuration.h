@@ -325,7 +325,7 @@
 
 // Disable peltier cold bed for bioprinting
 #if HAS_HEATED_BED
-	#define USES_PELTIER_COLD_BED 1
+	#define USES_PELTIER_COLD_BED 0
 #endif
 
 // Dummy thermistor constant temperature readings, for use with 998 and 999
@@ -521,7 +521,7 @@
  */
 
 
-#define THERMAL_PROTECTION_HOTENDS // Enable thermal protection for all extruders
+//#define THERMAL_PROTECTION_HOTENDS // Enable thermal protection for all extruders
 #define THERMAL_PROTECTION_BED     // Enable thermal protection for the heated bed
 
 
