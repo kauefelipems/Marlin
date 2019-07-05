@@ -491,11 +491,8 @@
  * *** IT IS HIGHLY RECOMMENDED TO LEAVE THIS OPTION ENABLED! ***
  */
 #define PREVENT_COLD_EXTRUSION
-#if ENABLED(USES_PELTIER_EXTRUSION)
-  #define EXTRUDE_MINTEMP 0
-#else
-  #define EXTRUDE_MINTEMP 170
-#endif
+#define EXTRUDE_MINTEMP 1
+
 /**
  * Prevent a single extrusion longer than EXTRUDE_MAXLENGTH.
  * Note: For Bowden Extruders make this large enough to allow load/unload.
@@ -897,8 +894,8 @@
 // @section extruder
 
 // For direct drive extruder v9 set to true, for geared extruder set to false.
-#define INVERT_E0_DIR true
-#define INVERT_E1_DIR true
+#define INVERT_E0_DIR false
+#define INVERT_E1_DIR false
 #define INVERT_E2_DIR false
 #define INVERT_E3_DIR false
 #define INVERT_E4_DIR false
