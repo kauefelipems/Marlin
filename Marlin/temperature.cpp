@@ -722,115 +722,120 @@ float Temperature::get_pid_output(const int8_t e) {
     #define _HOTEND_TEST     e == active_extruder //for extrusion scaling
   #endif
   float pid_output;
-  #if ENABLED(PIDTEMP)
-    #if DISABLED(PID_OPENLOOP)
+	if(target_temperature[HOTEND_INDEX] != 0) {
+	  #if ENABLED(PIDTEMP)
+		#if DISABLED(PID_OPENLOOP)
+
+			pid_error[HOTEND_INDEX] = 
+			   #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+				 (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
+			   #endif
+					  (target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX]); 
+
+			dTerm[HOTEND_INDEX] = 
+			   #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+				 (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) *  //Invert error signal if Peltier is cooling down
+			   #endif
+					  PID_K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + float(PID_K1) * dTerm[HOTEND_INDEX]; //smoothing filter, probably to avoid noise
+
+			temp_dState[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];      
+
+		  #if HEATER_IDLE_HANDLER 
+			if (heater_idle_timeout_exceeded[HOTEND_INDEX]) { //if too much idle time turn the control action off
+			  pid_output = 0;
+			  pid_reset[HOTEND_INDEX] = true;
+			}
+			else
+		  #endif
+		  if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE) { //if error greater than linear range set output to max to accelerate the process
+			pid_output = BANG_MAX;
+			pid_reset[HOTEND_INDEX] = true;
+		  }
+		  else if (pid_error[HOTEND_INDEX] < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0 //if negative error greater than linear range, or temperature target is zero, or idle for 
+																											  //too much time, turn the heater off and reset integrator
+			#if HEATER_IDLE_HANDLER
+			  || heater_idle_timeout_exceeded[HOTEND_INDEX] //or IDLE time was exceeded
+			#endif
+			) {
+			pid_output = 0;
+			pid_reset[HOTEND_INDEX] = true;
+		  }
+		  else {
+			if (pid_reset[HOTEND_INDEX]) {
+			  temp_iState[HOTEND_INDEX] = 0.0; //reset integrator when pid_reset = true
+			  pid_reset[HOTEND_INDEX] = false;
+			}
+			pTerm[HOTEND_INDEX] = PID_PARAM(Kp, HOTEND_INDEX) * pid_error[HOTEND_INDEX];
+			temp_iState[HOTEND_INDEX] += pid_error[HOTEND_INDEX];
+			iTerm[HOTEND_INDEX] = PID_PARAM(Ki, HOTEND_INDEX) * temp_iState[HOTEND_INDEX];
+
+			pid_output = pTerm[HOTEND_INDEX] + iTerm[HOTEND_INDEX] - dTerm[HOTEND_INDEX];
+
+			#if ENABLED(PID_EXTRUSION_SCALING) 
+			  cTerm[HOTEND_INDEX] = 0;
+			  if (_HOTEND_TEST) { //check if extruder is moving filament
+				const long e_position = stepper.position(E_AXIS);
+				if (e_position > last_e_position) {
+				  lpq[lpq_ptr] = e_position - last_e_position; //check the feed rate (steps) and save it the lpq queue
+				  last_e_position = e_position;
+				}
+				else
+				  lpq[lpq_ptr] = 0;
+
+				if (++lpq_ptr >= lpq_len) lpq_ptr = 0; //reset the queue
+				cTerm[HOTEND_INDEX] = (lpq[lpq_ptr] * planner.steps_to_mm[E_AXIS]) * PID_PARAM(Kc, HOTEND_INDEX);
+				pid_output += cTerm[HOTEND_INDEX];
+			  }
+
+			#endif // PID_EXTRUSION_SCALING
+
+			if (pid_output > PID_MAX) {
+			  if (pid_error[HOTEND_INDEX] > 0) temp_iState[HOTEND_INDEX] -= pid_error[HOTEND_INDEX]; // conditional un-integration
+			  pid_output = PID_MAX;
+			}
+			else if (pid_output < 0) {
+			  if (pid_error[HOTEND_INDEX] < 0) temp_iState[HOTEND_INDEX] -= pid_error[HOTEND_INDEX]; // conditional un-integration
+			  pid_output = 0;
+			}
+		  }
+		#else
+		  pid_output = constrain(target_temperature[HOTEND_INDEX], 0, PID_MAX); //sets the power directly through M104
+		#endif // PID_OPENLOOP
+
+		#if ENABLED(PID_DEBUG)
+		  SERIAL_ECHO_START();
+		  SERIAL_ECHOPAIR(MSG_PID_DEBUG, HOTEND_INDEX);
+		  SERIAL_ECHOPAIR(MSG_PID_DEBUG_INPUT, current_temperature[HOTEND_INDEX]);
+		  SERIAL_ECHOPAIR(MSG_PID_DEBUG_OUTPUT, pid_output);
+		  SERIAL_ECHOPAIR(MSG_PID_DEBUG_PTERM, pTerm[HOTEND_INDEX]);
+		  SERIAL_ECHOPAIR(MSG_PID_DEBUG_ITERM, iTerm[HOTEND_INDEX]);
+		  SERIAL_ECHOPAIR(MSG_PID_DEBUG_DTERM, dTerm[HOTEND_INDEX]);
+		  #if ENABLED(PID_EXTRUSION_SCALING)
+			SERIAL_ECHOPAIR(MSG_PID_DEBUG_CTERM, cTerm[HOTEND_INDEX]);
+		  #endif
+		  SERIAL_EOL();
+		#endif // PID_DEBUG
+
+	  #else /* PID off */
+		#if HEATER_IDLE_HANDLER
+		  if (heater_idle_timeout_exceeded[HOTEND_INDEX])
+			pid_output = 0;
+		  else
+		#endif
+		pid_output = 
+			#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+			  cool_or_heat[HOTEND_INDEX] 
+				? ((current_temperature[HOTEND_INDEX] > target_temperature[HOTEND_INDEX]) ? PID_MAX : 0) //if cooling, act if current > target
+				: ((current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0); //if heating, act if current < target
+			#else
+			  (current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0; //relay operation
+			#endif
+
+	  #endif //ENABLED(PIDTEMP)
+  }
   
-        pid_error[HOTEND_INDEX] = 
-           #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-             (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) * //Invert error signal if Peltier is cooling down
-           #endif
-                  (target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX]); 
-  
-        dTerm[HOTEND_INDEX] = 
-           #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-             (cool_or_heat[HOTEND_INDEX] ? -1.0 : 1.0) *  //Invert error signal if Peltier is cooling down
-           #endif
-                  PID_K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + float(PID_K1) * dTerm[HOTEND_INDEX]; //smoothing filter, probably to avoid noise
-        
-        temp_dState[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];      
-  
-      #if HEATER_IDLE_HANDLER 
-        if (heater_idle_timeout_exceeded[HOTEND_INDEX]) { //if too much idle time turn the control action off
-          pid_output = 0;
-          pid_reset[HOTEND_INDEX] = true;
-        }
-        else
-      #endif
-      if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE) { //if error greater than linear range set output to max to accelerate the process
-        pid_output = BANG_MAX;
-        pid_reset[HOTEND_INDEX] = true;
-      }
-      else if (pid_error[HOTEND_INDEX] < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0 //if negative error greater than linear range, or temperature target is zero, or idle for 
-                                                                                                          //too much time, turn the heater off and reset integrator
-        #if HEATER_IDLE_HANDLER
-          || heater_idle_timeout_exceeded[HOTEND_INDEX] //or IDLE time was exceeded
-        #endif
-        ) {
-        pid_output = 0;
-        pid_reset[HOTEND_INDEX] = true;
-      }
-      else {
-        if (pid_reset[HOTEND_INDEX]) {
-          temp_iState[HOTEND_INDEX] = 0.0; //reset integrator when pid_reset = true
-          pid_reset[HOTEND_INDEX] = false;
-        }
-        pTerm[HOTEND_INDEX] = PID_PARAM(Kp, HOTEND_INDEX) * pid_error[HOTEND_INDEX];
-        temp_iState[HOTEND_INDEX] += pid_error[HOTEND_INDEX];
-        iTerm[HOTEND_INDEX] = PID_PARAM(Ki, HOTEND_INDEX) * temp_iState[HOTEND_INDEX];
-
-        pid_output = pTerm[HOTEND_INDEX] + iTerm[HOTEND_INDEX] - dTerm[HOTEND_INDEX];
-
-        #if ENABLED(PID_EXTRUSION_SCALING) 
-          cTerm[HOTEND_INDEX] = 0;
-          if (_HOTEND_TEST) { //check if extruder is moving filament
-            const long e_position = stepper.position(E_AXIS);
-            if (e_position > last_e_position) {
-              lpq[lpq_ptr] = e_position - last_e_position; //check the feed rate (steps) and save it the lpq queue
-              last_e_position = e_position;
-            }
-            else
-              lpq[lpq_ptr] = 0;
-
-            if (++lpq_ptr >= lpq_len) lpq_ptr = 0; //reset the queue
-            cTerm[HOTEND_INDEX] = (lpq[lpq_ptr] * planner.steps_to_mm[E_AXIS]) * PID_PARAM(Kc, HOTEND_INDEX);
-            pid_output += cTerm[HOTEND_INDEX];
-          }
-        
-        #endif // PID_EXTRUSION_SCALING
-
-        if (pid_output > PID_MAX) {
-          if (pid_error[HOTEND_INDEX] > 0) temp_iState[HOTEND_INDEX] -= pid_error[HOTEND_INDEX]; // conditional un-integration
-          pid_output = PID_MAX;
-        }
-        else if (pid_output < 0) {
-          if (pid_error[HOTEND_INDEX] < 0) temp_iState[HOTEND_INDEX] -= pid_error[HOTEND_INDEX]; // conditional un-integration
-          pid_output = 0;
-        }
-      }
-    #else
-      pid_output = constrain(target_temperature[HOTEND_INDEX], 0, PID_MAX); //sets the power directly through M104
-    #endif // PID_OPENLOOP
-
-    #if ENABLED(PID_DEBUG)
-      SERIAL_ECHO_START();
-      SERIAL_ECHOPAIR(MSG_PID_DEBUG, HOTEND_INDEX);
-      SERIAL_ECHOPAIR(MSG_PID_DEBUG_INPUT, current_temperature[HOTEND_INDEX]);
-      SERIAL_ECHOPAIR(MSG_PID_DEBUG_OUTPUT, pid_output);
-      SERIAL_ECHOPAIR(MSG_PID_DEBUG_PTERM, pTerm[HOTEND_INDEX]);
-      SERIAL_ECHOPAIR(MSG_PID_DEBUG_ITERM, iTerm[HOTEND_INDEX]);
-      SERIAL_ECHOPAIR(MSG_PID_DEBUG_DTERM, dTerm[HOTEND_INDEX]);
-      #if ENABLED(PID_EXTRUSION_SCALING)
-        SERIAL_ECHOPAIR(MSG_PID_DEBUG_CTERM, cTerm[HOTEND_INDEX]);
-      #endif
-      SERIAL_EOL();
-    #endif // PID_DEBUG
-
-  #else /* PID off */
-    #if HEATER_IDLE_HANDLER
-      if (heater_idle_timeout_exceeded[HOTEND_INDEX])
-        pid_output = 0;
-      else
-    #endif
-    pid_output = 
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-          cool_or_heat[HOTEND_INDEX] 
-            ? ((current_temperature[HOTEND_INDEX] > target_temperature[HOTEND_INDEX]) ? PID_MAX : 0) //if cooling, act if current > target
-            : ((current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0); //if heating, act if current < target
-        #else
-          (current_temperature[HOTEND_INDEX] < target_temperature[HOTEND_INDEX]) ? PID_MAX : 0; //relay operation
-        #endif
-  
-  #endif
+  else  //target_temperature[HOTEND_INDEX] == 0
+    pid_output = 0;
 
   return pid_output;
 }
@@ -1044,55 +1049,61 @@ void Temperature::manage_heater() {
       else
     #endif
     {
-      #if ENABLED(PIDTEMPBED)
-        soft_pwm_amount_bed = WITHIN(current_temperature_bed, BED_MINTEMP, BED_MAXTEMP) ? (int)get_pid_output_bed() >> 1 : 0;
-        
-      #else
-        
-        // Check if temperature is within the correct band
-        if (WITHIN(current_temperature_bed, BED_MINTEMP, BED_MAXTEMP)) {
-          #if ENABLED(BED_LIMIT_SWITCHING)
-          
-            #if ENABLED(USES_PELTIER_COLD_BED)
-              if (cool_or_heat_bed){
-                if (current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
-                  soft_pwm_amount_bed = 0;
-                else if (current_temperature_bed >= target_temperature_bed + (BED_HYSTERESIS))
-                  soft_pwm_amount_bed = MAX_BED_POWER >> 1;
-              }
-          
-              else {
+     if (target_temperature_bed != 0){
+        #if ENABLED(PIDTEMPBED)
+          soft_pwm_amount_bed = WITHIN(current_temperature_bed, BED_MINTEMP, BED_MAXTEMP) ? (int)get_pid_output_bed() >> 1 : 0;
+
+        #else
+
+          // Check if temperature is within the correct band
+          if (WITHIN(current_temperature_bed, BED_MINTEMP, BED_MAXTEMP)) {
+            #if ENABLED(BED_LIMIT_SWITCHING)
+
+              #if ENABLED(USES_PELTIER_COLD_BED)
+                if (cool_or_heat_bed){
+                  if (current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
+                    soft_pwm_amount_bed = 0;
+                  else if (current_temperature_bed >= target_temperature_bed + (BED_HYSTERESIS))
+                    soft_pwm_amount_bed = MAX_BED_POWER >> 1;
+                }
+
+                else {
+                  if (current_temperature_bed >= target_temperature_bed + BED_HYSTERESIS)
+                    soft_pwm_amount_bed = 0;
+                  else if (current_temperature_bed <= target_temperature_bed - (BED_HYSTERESIS))
+                    soft_pwm_amount_bed = MAX_BED_POWER >> 1;
+                }
+
+              #else
                 if (current_temperature_bed >= target_temperature_bed + BED_HYSTERESIS)
                   soft_pwm_amount_bed = 0;
                 else if (current_temperature_bed <= target_temperature_bed - (BED_HYSTERESIS))
                   soft_pwm_amount_bed = MAX_BED_POWER >> 1;
-              }
-          
-            #else
-              if (current_temperature_bed >= target_temperature_bed + BED_HYSTERESIS)
-                soft_pwm_amount_bed = 0;
-              else if (current_temperature_bed <= target_temperature_bed - (BED_HYSTERESIS))
-                soft_pwm_amount_bed = MAX_BED_POWER >> 1;
-            #endif
-          
-          #else // !PIDTEMPBED && !BED_LIMIT_SWITCHING
-          
-            #if ENABLED(USES_PELTIER_COLD_BED)
-              soft_pwm_amount_bed = cool_or_heat_bed 
-                                     ? (current_temperature_bed > target_temperature_bed ? MAX_BED_POWER >> 1 : 0)
-                                     : (current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0);
-            #else
-              soft_pwm_amount_bed = current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0;
-                                     
-            #endif
-                                     
-          #endif //ENABLED(BED_LIMIT_SWITCHING)
-        }
-        else {
-          soft_pwm_amount_bed = 0;
-          WRITE_HEATER_BED(LOW);
-        }
-      #endif // ENABLED(PIDTEMPBED)
+              #endif
+
+            #else // !PIDTEMPBED && !BED_LIMIT_SWITCHING
+
+              #if ENABLED(USES_PELTIER_COLD_BED)
+                soft_pwm_amount_bed = cool_or_heat_bed 
+                                       ? (current_temperature_bed > target_temperature_bed ? MAX_BED_POWER >> 1 : 0)
+                                       : (current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0);
+              #else
+                soft_pwm_amount_bed = current_temperature_bed < target_temperature_bed ? MAX_BED_POWER >> 1 : 0;
+
+              #endif
+
+            #endif //ENABLED(BED_LIMIT_SWITCHING)
+          }
+          else {
+            soft_pwm_amount_bed = 0;
+            WRITE_HEATER_BED(LOW);
+          }
+        #endif // ENABLED(PIDTEMPBED)
+     }
+        
+     else // target_temperature_bed != 0
+       soft_pwm_amount_bed 0;
+       
     }
   #endif // HAS_HEATED_BED
 }
