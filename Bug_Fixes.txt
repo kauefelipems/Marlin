@@ -1,0 +1,34 @@
+Bug List and Fixes
+
+-----------------------------------------------------------------------------------
+Not solved:
+
+1 - Ambient Temperature changes after reset to current temperature;
+
+2 - Cura "abort print" routine turns sends 0 to temperature target;
+
+3 - PID autotuning routine times out at some temperatures (e.g 10º and 30º C);
+
+-----------------------------------------------------------------------------------
+Solved:
+
+1 - When Cura turns off the heaters, the target of the peltier is zero; 
+	Solution: Marlin sends PWM 0 to the peltier if target is 0 independent of current temperature;
+
+2 - Cura turns the heater off after finishing the print;
+	Solution: Cura ending routine was changed to not keep the heater on;
+	
+3 - Extruder don't work with new firmware;
+	Solution: Setting MINIMUN_EXTRUDER_TEMPERATURE to 1º C;
+
+4 - Cura begins extrusion before reaching target;
+	Solution: Automatic replacement of "M109 S" to "M109 R" in the post-processing generation of the G-code.
+	
+-----------------------------------------------------------------------------------
+Pending Tests:
+
+1 - Thermal protection;
+
+2 - Collagen bioprinting;
+
+3 - Controller performance with and without autotuning;
