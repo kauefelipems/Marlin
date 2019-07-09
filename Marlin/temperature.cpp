@@ -683,6 +683,81 @@ int Temperature::getHeaterPower(const int heater) {
   }
 #endif //ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+
+  void Temperature::getAmbientTemperature(const int16_t temp){ //Get ambient temperature for use in the Cool_or_heat() tests 
+    
+      if (temp == -1) {
+          const millis_t ms = millis();
+          millis_t wait_time = ms;
+
+          #ifndef MAX_ADC_WAIT_TIME
+            #define MAX_ADC_WAIT_TIME 10
+          #endif
+
+          while(1){ //wait for ADC to read temperature
+            wait_time = millis();
+
+            if (temp_meas_ready){
+              updateTemperaturesFromRawValues(); //update the variable values
+
+              HOTEND_LOOP()
+                ambient_temperature[e] = current_temperature[e];              
+             break;
+            }
+
+            //Implement TIME-OUT
+            else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
+              SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
+              break;
+            } 
+          }
+      }
+    
+      else {
+          HOTEND_LOOP()
+            ambient_temperature[e] = temp;    
+      }
+  }
+
+#endif //ENABLED(USES_PELTIER_COLD_EXTRUSION)
+
+#if ENABLED(USES_PELTIER_COLD_BED)
+
+  void Temperature::getBedAmbientTemperature(const int16_t temp){ //Get ambient temperature for use in the Cool_or_heat() tests 
+    
+      if (temp == -1) {
+          const millis_t ms = millis();
+          millis_t wait_time = ms;
+
+          #ifndef MAX_ADC_WAIT_TIME
+            #define MAX_ADC_WAIT_TIME 10
+          #endif
+
+          while(1){ //wait for ADC to read temperature
+            wait_time = millis();
+
+            if (temp_meas_ready){
+              updateTemperaturesFromRawValues(); //update the variable values
+              ambient_temperature_bed = current_temperature_bed;              
+             break;
+            }
+
+            //Implement TIME-OUT
+            else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
+              SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
+              break;
+            } 
+          }
+      }
+    
+      else {
+            ambient_temperature_bed = temp;    
+      }
+  }
+
+#endif //ENABLED(USES_PELTIER_COLD_BED)
+
 //
 // Temperature Error Handlers
 //
@@ -1361,6 +1436,10 @@ void Temperature::init() {
       setPwmFrequency(FAN2_PIN, 1); // No prescaling. Pwm frequency = F_CPU/256/8
     #endif
   #endif
+  
+  #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+    SET_OUTPUT(COOL_OR_HEAT_PIN);
+  #endif
 
   #if ENABLED(HEATER_0_USES_MAX6675)
 
@@ -1548,47 +1627,6 @@ void Temperature::init() {
 
   #if ENABLED(PROBING_HEATERS_OFF)
     paused = false;
-  #endif
-  
-  #if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
-     
-     //Get ambient temperature for use in the Cool_or_heat() tests 
-    
-      const millis_t ms = millis();
-      millis_t wait_time = ms;
-
-      #ifndef MAX_ADC_WAIT_TIME
-        #define MAX_ADC_WAIT_TIME 10
-      #endif
-  
-      SET_OUTPUT(COOL_OR_HEAT_PIN);
-
-      while(1){ //wait for ADC to read temperature
-        wait_time = millis();
-
-        if (temp_meas_ready){
-          updateTemperaturesFromRawValues(); //update the variable values
-
-        #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-          HOTEND_LOOP(){
-				    ambient_temperature[e] = current_temperature[e];
-				    target_temperature[e] = ambient_temperature[e];
-			    }
-          #endif
-
-         #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
-            ambient_temperature_bed = current_temperature_bed;
-			      target_temperature_bed = ambient_temperature_bed;
-         #endif  
-         break;
-        }
-
-        //Implement TIME-OUT
-        else if ((wait_time - ms) > MAX_ADC_WAIT_TIME*1000UL){
-          SERIAL_PROTOCOLLNPGM(MSG_ADC_WAIT_TIMEOUT);
-          break;
-        } 
-      }
   #endif
   
 }

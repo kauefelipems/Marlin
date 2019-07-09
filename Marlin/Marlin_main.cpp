@@ -8252,6 +8252,22 @@ inline void gcode_M77() { print_job_timer.stop(); }
   }
 #endif
 
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+/**
+ * M103: Get nozzles ambient temperature and save at the EEPROM
+ */
+
+inline void gcode_M103(){
+  if (parser.seenval('S')) {
+    const int16_t temp = parser.value_celsius();
+    thermalManager.getAmbientTemperature(temp);
+  }
+  
+  else thermalManager.getAmbientTemperature(-1);
+}
+#endif
+
+
 /**
  * M104: Set hot end temperature
  */
@@ -8582,6 +8598,21 @@ inline void gcode_M109() {
   #ifndef MIN_COOLING_SLOPE_TIME_BED
     #define MIN_COOLING_SLOPE_TIME_BED 60
   #endif
+
+#if ENABLED(USES_PELTIER_COLD_BED)
+	/**
+	 * M142: Get bed ambient temperature and save at the EEPROM
+	 */
+
+	inline void gcode_M142(){
+	  if (parser.seenval('S')) {
+		const int16_t temp = parser.value_celsius();
+		thermalManager.getBedAmbientTemperature(temp);
+	  }
+
+	  else thermalManager.getBedAmbientTemperature(-1);
+	}
+#endif
 
   /**
    * M190: Sxxx Wait for bed current temp to reach target temp. Waits only when heating
@@ -12806,6 +12837,10 @@ void process_parsed_command() {
       #if ENABLED(M100_FREE_MEMORY_WATCHER)
         case 100: gcode_M100(); break;                            // M100: Free Memory Report
       #endif
+			
+	  #if ENABLED(USES_PELTIER_COLD_EXTRUSION)                    // M103: Get Ambient Temperature
+		case 103: gcode_M103(); break;
+	  #endif
 
       case 104: gcode_M104(); break;                              // M104: Set Hotend Temperature
       case 110: gcode_M110(); break;                              // M110: Set Current Line Number

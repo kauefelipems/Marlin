@@ -613,12 +613,21 @@ class Temperature {
         }
       #endif
     #endif
-
+	
+	#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+	  static void getAmbientTemperature(const int16_t temp);
+	#endif	
+	
+	#if ENABLED(USES_PELTIER_COLD_BED)
+	  static void getBedAmbientTemperature(const int16_t temp);
+	#endif	
+	
   private:
 
 	#if ENABLED(USES_PELTIER_COLD_EXTRUSION) || ENABLED(USES_PELTIER_COLD_BED)
 	  static void get_Cool_or_Heat();
 	#endif
+	
 	
     #if ENABLED(FAST_PWM_FAN)
       static void setPwmFrequency(const pin_t pin, int val);
