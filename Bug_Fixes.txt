@@ -24,7 +24,8 @@ Solved:
 	Solution: Setting MINIMUN_EXTRUDER_TEMPERATURE to 1º C;
 
 4 - Cura begins extrusion before reaching target;
-	Solution: Automatic replacement of "M109 S" to "M109 R" in the post-processing generation of the G-code.
+	Solution: Automatic replacement of "M109 S" to "M109 R" in the post-processing generation of the G-code and adapting the M109 settings in the firmware (MIN_COOLING_SLOPE_DEG, MIN_COOLING_SLOPE_TIME,
+	TEMP_HYSTERESIS and TEMP_WINDOW).
 	
 -----------------------------------------------------------------------------------
 Pending Tests:
