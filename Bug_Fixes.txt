@@ -9,6 +9,8 @@ Not solved:
 
 3 - PID autotuning routine times out at some temperatures (e.g 10º and 30º C);
 
+4 - If printer uses only cooling or only heating, the printer can be submitted to thermal runaway.
+
 -----------------------------------------------------------------------------------
 Solved:
 
