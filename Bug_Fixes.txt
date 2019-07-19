@@ -9,6 +9,8 @@ Not solved:
 
 3 - PID autotuning routine times out at some temperatures (e.g 10º and 30º C);
 
+4 - Thermal Runaway does not trigger in a faulty situation.
+
 -----------------------------------------------------------------------------------
 Solved:
 
@@ -31,8 +33,39 @@ Solved:
 -----------------------------------------------------------------------------------
 Pending Tests:
 
-1 - Thermal protection;
+1 - Thermal protection: Watch Hotends Working, Thermal Runaway not Working;
 
-2 - Collagen bioprinting;
+2 - Collagen bioprinting: Collagen is gelling inside the syringe and inside the tube, clogging the needle;
 
 3 - Controller performance with and without autotuning;
+
+-----------------------------------------------------------------------------------
+Hardware Issues:
+
+1 - Water drops are being formed inside the Peltier module, which causes short circuits and reduce thermal power;
+
+2 - Hot air is reaching the cold syring and reducing the cooling power;
+
+Possible solution for 1 and 2: The Peltier heatsink can be assembled above the syringe, so the hot air can go up and the droplets can go down. This also creates a better circulation of air.
+
+3 - Needs better insulation in the tube and aluminum part. Water cooling should be considered to keep the tube temperature down;
+
+1º Possible solution to 3: Polyethylene foam (diameter: 1.5 cm) surrounding the tube to avoid heat exchange. The tubes and syringe can be cooled beforehand on a fridge (4º C). Increase the thickness of the insulator wall.
+Print a small cylinder to enclousure the front of the syringe. Print a insulated connector to the needle and tube.
+
+Coounter Argument to 1º Possible Solution to 3: Using the initial thickness, the minimun temperature measured by an external thermometer was -0.8º C. That should be enough to keep the collagen liquid.
+
+2º Possible solution to 3: Water cooling using a peristaltic pump running water on a coaxial tube surrounding the main tube, from the syringe to the needle. The water can be cooled using the thermal module or another peltier.
+
+4 - Cool or Heat switch needs repair in the contacts;
+
+Solution to 4: Buy the connectors needed;
+
+5 - The nozzle needs a smarter connection to the needle and the tube + insulator, to make it easier to change.
+
+Solution for 5: Print a connector around the metal part of the nozzle. Use it to also insulate the needle and tube.
+
+
+
+
+
