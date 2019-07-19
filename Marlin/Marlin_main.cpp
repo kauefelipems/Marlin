@@ -8420,7 +8420,7 @@ inline void gcode_M105() {
   #define MIN_COOLING_SLOPE_DEG 0.5
 #endif
 #ifndef MIN_COOLING_SLOPE_TIME
-  #define MIN_COOLING_SLOPE_TIME 120
+  #define MIN_COOLING_SLOPE_TIME 300
 #endif
 
 inline void gcode_M109() {

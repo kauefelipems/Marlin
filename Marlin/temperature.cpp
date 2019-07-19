@@ -671,13 +671,22 @@ int Temperature::getHeaterPower(const int heater) {
   
     #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
       HOTEND_LOOP() {
-        cool_or_heat[e] = ambient_temperature[e] > target_temperature[e];
-        WRITE_COOL_OR_HEAT(cool_or_heat[e] ? LOW:HIGH); //Set thermal switch
+        #ifndef PELTIER_EXTRUDER_ONLY_COOLING
+          cool_or_heat[e] = ambient_temperature[e] > target_temperature[e];
+          WRITE_COOL_OR_HEAT(cool_or_heat[e] ? LOW:HIGH); //Set thermal switch
+        #else
+          cool_or_heat[e] = 1;
+          WRITE_COOL_OR_HEAT(LOW); //Set thermal switch
+        #endif
       }
     #endif
 
     #if HAS_HEATED_BED && ENABLED(USES_PELTIER_COLD_BED)
-      cool_or_heat_bed = ambient_temperature_bed > target_temperature_bed;
+        #ifndef PELTIER_BED_ONLY_COOLING      
+          cool_or_heat_bed = ambient_temperature_bed > target_temperature_bed;
+        #else
+          cool_or_heat_bed = 1;
+        #endif
     #endif  
 
   }
@@ -723,7 +732,6 @@ int Temperature::getHeaterPower(const int heater) {
 #endif //ENABLED(USES_PELTIER_COLD_EXTRUSION)
 
 #if ENABLED(USES_PELTIER_COLD_BED)
-
   void Temperature::getBedAmbientTemperature(const int16_t temp){ //Get ambient temperature for use in the Cool_or_heat() tests 
     
       if (temp == -1) {

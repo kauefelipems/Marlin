@@ -9,8 +9,6 @@ Not solved:
 
 3 - PID autotuning routine times out at some temperatures (e.g 10º and 30º C);
 
-4 - If printer uses only cooling or only heating, the printer can be submitted to thermal runaway.
-
 -----------------------------------------------------------------------------------
 Solved:
 
@@ -26,6 +24,9 @@ Solved:
 4 - Cura begins extrusion before reaching target;
 	Solution: Automatic replacement of "M109 S" to "M109 R" in the post-processing generation of the G-code and adapting the M109 settings in the firmware (MIN_COOLING_SLOPE_DEG, MIN_COOLING_SLOPE_TIME,
 	TEMP_HYSTERESIS and TEMP_WINDOW).
+
+5 - If printer uses only cooling or only heating, the printer can be submitted to thermal runaway.
+	Solution: If Peltier only cools, macro bypass the get_cool_or_heat() function and ambient temperature is ignored 
 	
 -----------------------------------------------------------------------------------
 Pending Tests:

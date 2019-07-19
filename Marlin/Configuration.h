@@ -321,11 +321,16 @@
 
 // Enable peltier cold extrusion for bioprinting
 #define USES_PELTIER_COLD_EXTRUSION 1
-
+#if ENABLED(USES_PELTIER_COLD_EXTRUSION)
+	#define PELTIER_EXTRUDER_ONLY_COOLING
+#endif
 
 // Disable peltier cold bed for bioprinting
 #if HAS_HEATED_BED
 	#define USES_PELTIER_COLD_BED 0
+	#if ENABLED(USES_PELTIER_COLD_BED)
+		#define PELTIER_BED_ONLY_COOLING
+	#endif
 #endif
 
 // Dummy thermistor constant temperature readings, for use with 998 and 999
