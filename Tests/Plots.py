@@ -74,6 +74,6 @@ if __name__ == "__main__":
     #plot.plot_files(files_list['file6'],files_list['file7'],files_list['file8'],files_list['file9'],
                     #key="T:", key2 = "@:", period = 1.8/60)
         
-    plot.plot_files(files_list['file10'], key="Input", key2="Output", period=0.16 / 60)
+    plot.plot_files(files_list['file5'], key="Input", key2="Output", period=0.16 / 60)
 
 	

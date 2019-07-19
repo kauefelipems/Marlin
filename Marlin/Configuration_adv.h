@@ -90,10 +90,10 @@
    * and/or decrease WATCH_TEMP_INCREASE. WATCH_TEMP_INCREASE should not be set
    * below 2.
    */
-  #define WATCH_TEMP_PERIOD 20                // Seconds
+  #define WATCH_TEMP_PERIOD 300                // Seconds
   #define WATCH_TEMP_INCREASE 2               // Degrees Celsius
   #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
-    #define WATCH_TEMP_DECREASE 2             // Degrees Celsius
+    #define WATCH_TEMP_DECREASE 0.5             // Degrees Celsius
   #endif
 #endif
 
