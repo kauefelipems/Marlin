@@ -1,6 +1,6 @@
 Bug List and Fixes
 
------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------
 Not solved:
 
 1 - Ambient Temperature changes after reset to current temperature;
@@ -9,10 +9,53 @@ Not solved:
 
 3 - PID autotuning routine times out at some temperatures (e.g 10º and 30º C);
 
-4 - Thermal Runaway does not trigger in a faulty situation.
+---------------------------------------------------------------------------------------------------------------------------------
+Pending Tests:
 
------------------------------------------------------------------------------------
-Solved:
+1 - Thermal protection: Watch Hotends Working, Thermal Runaway not Working;
+
+2 - Collagen bioprinting: Collagen is gelling inside the syringe and inside the tube, clogging the needle;
+
+3 - Controller performance with and without autotuning;
+
+---------------------------------------------------------------------------------------------------------------------------------
+Hardware Issues:
+
+1 - Water drops are being formed inside the Peltier module, which causes short circuits and reduce thermal power;
+
+Possible solution for 1: Polymeric coating around the contacts to avoid water accumulation.
+
+2 - Hot air is reaching the cold syring and reducing the cooling power;
+
+Possible solution for 1 and 2: The Peltier heatsink can be assembled above the syringe, so the hot air can go up and the droplets can go down. This also creates a better circulation of air.
+	- This solution did not resulted for 1, but solved 2.
+
+3 - Needs better insulation in the tube and aluminum part. Water cooling should be considered to keep the tube temperature down;
+
+1º Possible solution to 3: Polyethylene foam (diameter: 1.5 cm) surrounding the tube to avoid heat exchange. The tubes and syringe can be cooled beforehand on a fridge (4º C). Increase the thickness of the insulator wall.
+Print a small cylinder to enclousure the front of the syringe. Print a insulated connector to the needle and tube.
+	- No need to increase the insulator wall. The module was flipped to improve air circulation through the heat sink, and collagen was kept liquid inside the aluminum module;
+	- The foam tube seems to help, but this has not been confirmed yet.
+	- The small cylinder and the connection were printed, and helps with the assembling.
+	- The main problem with this solution is the impossibility of seeing the liquid flow inside the tube. This makes it really hard to debug during printing, because it's not possible to check whether the liquid is flowing or the system is clogged.
+
+Coounter Argument to 1º Possible Solution to 3: Using the initial thickness, the minimun temperature measured by an external thermometer was -0.8º C. That should be enough to keep the collagen liquid.
+	- This is correct: no need to increase the wall. Flipping the module upside down significantly enhanced the thermal capability of the module.
+
+2º Possible solution to 3: Water cooling using a peristaltic pump running water on a coaxial tube surrounding the main tube, from the syringe to the needle. The water can be cooled using the thermal module or another peltier.
+
+4 - Cool or Heat switch needs repair in the contacts;
+
+Solution to 4: Buy the connectors needed;
+
+5 - The nozzle needs a smarter connection to the needle and the tube + insulator, to make it easier to change.
+
+1º Solution to 5: Print a connector around the metal part of the nozzle. Use it to also insulate the needle and tube.
+	- This was made, but it's still difficult to assemble before printing, because the tube need to be changed every time.
+
+2º Solution to 5: Print totally new connector, that directly fits inside a printed base, avoiding nuts or difficult assembling.
+---------------------------------------------------------------------------------------------------------------------------------
+Solved Issues:
 
 1 - When Cura turns off the heaters, the target of the peltier is zero; 
 	Solution: Marlin sends PWM 0 to the peltier if target is 0 independent of current temperature;
@@ -29,43 +72,6 @@ Solved:
 
 5 - If printer uses only cooling or only heating, the printer can be submitted to thermal runaway.
 	Solution: If Peltier only cools, macro bypass the get_cool_or_heat() function and ambient temperature is ignored 
-	
------------------------------------------------------------------------------------
-Pending Tests:
-
-1 - Thermal protection: Watch Hotends Working, Thermal Runaway not Working;
-
-2 - Collagen bioprinting: Collagen is gelling inside the syringe and inside the tube, clogging the needle;
-
-3 - Controller performance with and without autotuning;
-
------------------------------------------------------------------------------------
-Hardware Issues:
-
-1 - Water drops are being formed inside the Peltier module, which causes short circuits and reduce thermal power;
-
-2 - Hot air is reaching the cold syring and reducing the cooling power;
-
-Possible solution for 1 and 2: The Peltier heatsink can be assembled above the syringe, so the hot air can go up and the droplets can go down. This also creates a better circulation of air.
-
-3 - Needs better insulation in the tube and aluminum part. Water cooling should be considered to keep the tube temperature down;
-
-1º Possible solution to 3: Polyethylene foam (diameter: 1.5 cm) surrounding the tube to avoid heat exchange. The tubes and syringe can be cooled beforehand on a fridge (4º C). Increase the thickness of the insulator wall.
-Print a small cylinder to enclousure the front of the syringe. Print a insulated connector to the needle and tube.
-
-Coounter Argument to 1º Possible Solution to 3: Using the initial thickness, the minimun temperature measured by an external thermometer was -0.8º C. That should be enough to keep the collagen liquid.
-
-2º Possible solution to 3: Water cooling using a peristaltic pump running water on a coaxial tube surrounding the main tube, from the syringe to the needle. The water can be cooled using the thermal module or another peltier.
-
-4 - Cool or Heat switch needs repair in the contacts;
-
-Solution to 4: Buy the connectors needed;
-
-5 - The nozzle needs a smarter connection to the needle and the tube + insulator, to make it easier to change.
-
-Solution for 5: Print a connector around the metal part of the nozzle. Use it to also insulate the needle and tube.
-
-
 
 
 
