@@ -9,6 +9,9 @@ Not solved:
 
 3 - PID autotuning routine times out at some temperatures (e.g 10º and 30º C);
 
+4 - Zero temperature not permitted.
+
+
 ---------------------------------------------------------------------------------------------------------------------------------
 Pending Tests:
 
