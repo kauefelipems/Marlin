@@ -85,7 +85,7 @@ Notable contributors:
  - [[@psavva](https://github.com/psavva)]
  - [[@Tannoo](https://github.com/Tannoo)]
  - [[@teemuatlut](https://github.com/teemuatlut)]
- - ...and you!
+ - ... and you!
 
 ## License
 
