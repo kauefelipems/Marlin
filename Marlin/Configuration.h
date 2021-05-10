@@ -131,12 +131,12 @@
 // The following define selects which electronics board you have.
 // Please choose the name from boards.h that matches your setup
 #ifndef MOTHERBOARD
-  #define MOTHERBOARD BOARD_GT2560_REV_A
+  #define MOTHERBOARD BOARD_RAMPS_13_EFB
 #endif
 
 // Optional custom name for your RepStrap or other custom machine
 // Displayed in the LCD "Ready" message
-//#define CUSTOM_MACHINE_NAME "3D Printer"
+#define CUSTOM_MACHINE_NAME "4D LIEBioprinter"
 
 // Define this to set a unique identifier for this printer, (Used by some programs to differentiate between machines)
 // You can use an online service to generate a random UUID. (eg http://www.uuidgenerator.net/version4)
@@ -320,7 +320,7 @@
 
 
 // Enable peltier cold extrusion for bioprinting
-#define USES_PELTIER_COLD_EXTRUSION 1
+#define USES_PELTIER_COLD_EXTRUSION 0
 #if ENABLED(USES_PELTIER_COLD_EXTRUSION)
 	#define PELTIER_EXTRUDER_ONLY_COOLING
 #endif
@@ -652,14 +652,14 @@
  * Override with M92
  *                                      X, Y, Z, E0 [, E1[, E2[, E3[, E4]]]]
  */
-#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 80, 2666, 1610 }
+#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 40, 50, 402.5 }
 
 /**
  * Default Max Feed Rate (mm/s)
  * Override with M203
  *                                      X, Y, Z, E0 [, E1[, E2[, E3[, E4]]]]
  */
-#define DEFAULT_MAX_FEEDRATE          { 300, 300, 2, 25 }
+#define DEFAULT_MAX_FEEDRATE          { 300, 600, 20, 2 }
 
 /**
  * Default Max Acceleration (change/s) change = mm/s
@@ -667,7 +667,7 @@
  * Override with M201
  *                                      X, Y, Z, E0 [, E1[, E2[, E3[, E4]]]]
  */
-#define DEFAULT_MAX_ACCELERATION      { 3000, 3000, 100, 10000 }
+#define DEFAULT_MAX_ACCELERATION      { 3000, 3000, 800, 10000 }
 
 /**
  * Default Acceleration (change/s) change = mm/s
@@ -1194,7 +1194,7 @@
 
 // Homing speeds (mm/m)
 #define HOMING_FEEDRATE_XY (50*60)
-#define HOMING_FEEDRATE_Z  (4*60)
+#define HOMING_FEEDRATE_Z  (20*60)
 
 // @section calibrate
 
